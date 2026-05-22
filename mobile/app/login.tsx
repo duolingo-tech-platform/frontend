@@ -131,13 +131,6 @@ export default function LoginScreen() {
                 </LinearGradient>
               </TouchableOpacity>
 
-              {/* Divider */}
-              <View style={styles.dividerRow}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>ou continue com</Text>
-                <View style={styles.dividerLine} />
-              </View>
-
               {/* Register */}
               <View style={styles.registerRow}>
                 <Text style={styles.registerText}>Não tem conta? </Text>
