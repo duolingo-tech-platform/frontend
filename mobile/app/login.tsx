@@ -138,18 +138,6 @@ export default function LoginScreen() {
                 <View style={styles.dividerLine} />
               </View>
 
-              {/* Social */}
-              <View style={styles.socialRow}>
-                <TouchableOpacity style={styles.socialButton} activeOpacity={0.8}>
-                  <Text style={styles.socialIcon}>G</Text>
-                  <Text style={styles.socialText}>Google</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.socialButton} activeOpacity={0.8}>
-                  <Text style={styles.socialIcon}>⌘</Text>
-                  <Text style={styles.socialText}>Apple</Text>
-                </TouchableOpacity>
-              </View>
-
               {/* Register */}
               <View style={styles.registerRow}>
                 <Text style={styles.registerText}>Não tem conta? </Text>
