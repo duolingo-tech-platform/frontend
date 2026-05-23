@@ -6,10 +6,12 @@ import {
   ScrollView,
   StatusBar,
 } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 
 export default function HomeScreen() {
+  const router = useRouter();
+
   const courses = [
     { icon: '📱', title: 'Expo Deep Dive', progress: 50, color: '#43e97b' },
     { icon: '☁️', title: 'AWS for App Devs', progress: 25, color: '#38f9d7' },
@@ -19,6 +21,7 @@ export default function HomeScreen() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
+
       <LinearGradient
         colors={['#010d19', '#021a2e', '#010d19']}
         style={styles.container}
@@ -36,7 +39,12 @@ export default function HomeScreen() {
               <Text style={styles.greeting}>Bom dia 👋</Text>
               <Text style={styles.username}>João Dev</Text>
             </View>
-            <TouchableOpacity style={styles.avatarButton} activeOpacity={0.8}>
+
+            <TouchableOpacity
+              style={styles.avatarButton}
+              activeOpacity={0.8}
+              onPress={() => router.push('/profilescreens')}
+            >
               <LinearGradient
                 colors={['#43e97b', '#38f9d7']}
                 style={styles.avatar}
@@ -53,13 +61,17 @@ export default function HomeScreen() {
               <Text style={styles.statValue}>14</Text>
               <Text style={styles.statLabel}>Sequência</Text>
             </View>
+
             <View style={styles.statDivider} />
+
             <View style={styles.statCard}>
               <Text style={styles.statIcon}>⚡</Text>
               <Text style={styles.statValue}>Lv 12</Text>
               <Text style={styles.statLabel}>Nível</Text>
             </View>
+
             <View style={styles.statDivider} />
+
             <View style={styles.statCard}>
               <Text style={styles.statIcon}>💎</Text>
               <Text style={styles.statValue}>540</Text>
@@ -73,6 +85,7 @@ export default function HomeScreen() {
               <Text style={styles.sectionCardTitle}>Meta Diária</Text>
               <Text style={styles.sectionCardBadge}>30 / 50 XP</Text>
             </View>
+
             <View style={styles.progressBarBg}>
               <LinearGradient
                 colors={['#43e97b', '#38f9d7']}
@@ -81,7 +94,10 @@ export default function HomeScreen() {
                 style={[styles.progressBarFill, { width: '60%' }]}
               />
             </View>
-            <Text style={styles.progressHint}>Faltam 20 XP para completar sua meta de hoje 🎯</Text>
+
+            <Text style={styles.progressHint}>
+              Faltam 20 XP para completar sua meta de hoje 🎯
+            </Text>
           </View>
 
           {/* ── UP NEXT ── */}
@@ -90,22 +106,31 @@ export default function HomeScreen() {
               <View style={styles.upNextIconWrap}>
                 <Text style={styles.upNextIcon}>📘</Text>
               </View>
+
               <View style={styles.upNextBadge}>
                 <Text style={styles.upNextBadgeText}>UP NEXT</Text>
               </View>
             </View>
+
             <Text style={styles.upNextTitle}>React Native Basics</Text>
+
             <Text style={styles.upNextDesc}>
               Domine os conceitos de components, state e props para construir sua primeira interface mobile.
             </Text>
-            <TouchableOpacity activeOpacity={0.85} style={{ marginTop: 18 }}>
+
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={{ marginTop: 18 }}
+            >
               <LinearGradient
                 colors={['#43e97b', '#38f9d7']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.continueButton}
               >
-                <Text style={styles.continueButtonText}>Continuar Aprendendo →</Text>
+                <Text style={styles.continueButtonText}>
+                  Continuar Aprendendo →
+                </Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -114,7 +139,11 @@ export default function HomeScreen() {
           <View style={styles.section}>
             <View style={styles.sectionTitleRow}>
               <Text style={styles.sectionTitle}>Seus Cursos</Text>
-              <TouchableOpacity activeOpacity={0.7}>
+
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => router.push('/courses')}
+              >
                 <Text style={styles.sectionSeeAll}>Ver todos</Text>
               </TouchableOpacity>
             </View>
@@ -127,22 +156,38 @@ export default function HomeScreen() {
                   activeOpacity={0.8}
                 >
                   <View style={styles.courseLeft}>
-                    <View style={[styles.courseIconWrap, { borderColor: course.color + '40' }]}>
+                    <View
+                      style={[
+                        styles.courseIconWrap,
+                        { borderColor: course.color + '40' },
+                      ]}
+                    >
                       <Text style={styles.courseIcon}>{course.icon}</Text>
                     </View>
+
                     <View style={styles.courseInfo}>
                       <Text style={styles.courseTitle}>{course.title}</Text>
+
                       <View style={styles.courseProgressBg}>
                         <View
                           style={[
                             styles.courseProgressFill,
-                            { width: `${course.progress}%`, backgroundColor: course.color },
+                            {
+                              width: `${course.progress}%`,
+                              backgroundColor: course.color,
+                            },
                           ]}
                         />
                       </View>
                     </View>
                   </View>
-                  <Text style={[styles.coursePercent, { color: course.color }]}>
+
+                  <Text
+                    style={[
+                      styles.coursePercent,
+                      { color: course.color },
+                    ]}
+                  >
                     {course.progress}%
                   </Text>
                 </TouchableOpacity>
@@ -155,7 +200,12 @@ export default function HomeScreen() {
             <View style={styles.sectionTitleRow}>
               <Text style={styles.sectionTitle}>Conquistas Recentes</Text>
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.achievementsScroll}>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.achievementsScroll}
+            >
               {[
                 { icon: '🏆', label: 'Primeira Aula' },
                 { icon: '🔥', label: '7 Dias Seguidos' },
@@ -164,7 +214,9 @@ export default function HomeScreen() {
               ].map((item, i) => (
                 <View key={i} style={styles.achievementCard}>
                   <Text style={styles.achievementIcon}>{item.icon}</Text>
-                  <Text style={styles.achievementLabel}>{item.label}</Text>
+                  <Text style={styles.achievementLabel}>
+                    {item.label}
+                  </Text>
                 </View>
               ))}
             </ScrollView>
@@ -175,27 +227,51 @@ export default function HomeScreen() {
 
         {/* ── BOTTOM NAV ── */}
         <View style={styles.bottomNav}>
-          <TouchableOpacity style={styles.navItem} activeOpacity={0.7}>
+
+          {/* HOME */}
+          <TouchableOpacity
+            style={styles.navItem}
+            activeOpacity={0.7}
+          >
             <Text style={styles.navIconActive}>🏠</Text>
             <Text style={styles.navLabelActive}>Home</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navItem} activeOpacity={0.7}>
+
+          {/* CURSOS */}
+          <TouchableOpacity
+            style={styles.navItem}
+            activeOpacity={0.7}
+            onPress={() => router.push('/courses')}
+          >
             <Text style={styles.navIcon}>📚</Text>
             <Text style={styles.navLabel}>Cursos</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navItem} activeOpacity={0.7}>
+
+          {/* RANKING */}
+          <TouchableOpacity
+            style={styles.navItem}
+            activeOpacity={0.7}
+          >
             <Text style={styles.navIcon}>🏅</Text>
             <Text style={styles.navLabel}>Ranking</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navItem} activeOpacity={0.7}>
+
+          {/* PERFIL */}
+          <TouchableOpacity
+            style={styles.navItem}
+            activeOpacity={0.7}
+            onPress={() => router.push('/profilescreens')}
+          >
             <Text style={styles.navIcon}>👤</Text>
             <Text style={styles.navLabel}>Perfil</Text>
           </TouchableOpacity>
+
         </View>
       </LinearGradient>
     </>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
