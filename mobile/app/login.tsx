@@ -10,11 +10,14 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { Stack } from 'expo-router';
+
+import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState } from 'react';
 
 export default function LoginScreen() {
+  const router = useRouter();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -24,11 +27,13 @@ export default function LoginScreen() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
+
       <LinearGradient
         colors={['#010d19', '#021a2e', '#010d19']}
         style={styles.container}
       >
         <StatusBar barStyle="light-content" backgroundColor="#010d19" />
+
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={{ flex: 1, width: '100%' }}
@@ -38,7 +43,6 @@ export default function LoginScreen() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-
             {/* Logo */}
             <View style={styles.logoContainer}>
               <View style={styles.glowRing}>
@@ -55,10 +59,12 @@ export default function LoginScreen() {
             {/* Header */}
             <View style={styles.header}>
               <Text style={styles.eyebrow}>BEM-VINDO DE VOLTA</Text>
+
               <Text style={styles.title}>
                 Continue sua{'\n'}
                 <Text style={styles.titleHighlight}>jornada.</Text>
               </Text>
+
               <Text style={styles.subtitle}>
                 Faça login para retomar de onde parou.
               </Text>
@@ -66,12 +72,18 @@ export default function LoginScreen() {
 
             {/* Form */}
             <View style={styles.form}>
-
               {/* Email */}
               <View style={styles.inputWrapper}>
                 <Text style={styles.inputLabel}>E-mail</Text>
-                <View style={[styles.inputContainer, emailFocused && styles.inputContainerFocused]}>
+
+                <View
+                  style={[
+                    styles.inputContainer,
+                    emailFocused && styles.inputContainerFocused,
+                  ]}
+                >
                   <Text style={styles.inputIcon}>✉️</Text>
+
                   <TextInput
                     style={styles.input}
                     placeholder="seu@email.com"
@@ -90,12 +102,26 @@ export default function LoginScreen() {
               <View style={styles.inputWrapper}>
                 <View style={styles.labelRow}>
                   <Text style={styles.inputLabel}>Senha</Text>
-                  <TouchableOpacity activeOpacity={0.7}>
-                    <Text style={styles.forgotLink}>Esqueci minha senha</Text>
+
+                  {/* FORGOT PASSWORD */}
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => router.push('/forgotpassword')}
+                  >
+                    <Text style={styles.forgotLink}>
+                      Esqueci minha senha
+                    </Text>
                   </TouchableOpacity>
                 </View>
-                <View style={[styles.inputContainer, passwordFocused && styles.inputContainerFocused]}>
+
+                <View
+                  style={[
+                    styles.inputContainer,
+                    passwordFocused && styles.inputContainerFocused,
+                  ]}
+                >
                   <Text style={styles.inputIcon}>🔒</Text>
+
                   <TextInput
                     style={styles.input}
                     placeholder="••••••••"
@@ -106,40 +132,58 @@ export default function LoginScreen() {
                     onFocus={() => setPasswordFocused(true)}
                     onBlur={() => setPasswordFocused(false)}
                   />
+
                   <TouchableOpacity
-                    onPress={() => setPasswordVisible(!passwordVisible)}
+                    onPress={() =>
+                      setPasswordVisible(!passwordVisible)
+                    }
                     activeOpacity={0.7}
                     style={styles.eyeButton}
                   >
-                    <Text style={styles.eyeIcon}>{passwordVisible ? '🙈' : '👁️'}</Text>
+                    <Text style={styles.eyeIcon}>
+                      {passwordVisible ? '🙈' : '👁️'}
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </View>
-
             </View>
 
             {/* Actions */}
             <View style={styles.actions}>
-              <TouchableOpacity activeOpacity={0.85} style={{ width: '100%' }}>
+              {/* LOGIN BUTTON */}
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={{ width: '100%' }}
+                onPress={() => router.push('/home')}
+              >
                 <LinearGradient
                   colors={['#43e97b', '#38f9d7']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.primaryButton}
                 >
-                  <Text style={styles.primaryButtonText}>ENTRAR</Text>
+                  <Text style={styles.primaryButtonText}>
+                    ENTRAR
+                  </Text>
                 </LinearGradient>
               </TouchableOpacity>
 
               {/* Register */}
               <View style={styles.registerRow}>
-                <Text style={styles.registerText}>Não tem conta? </Text>
-                <TouchableOpacity activeOpacity={0.7}>
-                  <Text style={styles.registerLink}>Criar agora</Text>
+                <Text style={styles.registerText}>
+                  Não tem conta?{' '}
+                </Text>
+
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => router.push('/register')}
+                >
+                  <Text style={styles.registerLink}>
+                    Criar agora
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
-
           </ScrollView>
         </KeyboardAvoidingView>
       </LinearGradient>
@@ -152,6 +196,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
   },
+
   scrollContent: {
     flexGrow: 1,
     alignItems: 'center',
@@ -165,6 +210,7 @@ const styles = StyleSheet.create({
   logoContainer: {
     alignItems: 'center',
   },
+
   glowRing: {
     width: 140,
     height: 140,
@@ -180,11 +226,12 @@ const styles = StyleSheet.create({
     shadowRadius: 40,
     elevation: 20,
   },
+
   logoBackground: {
     width: 110,
     height: 110,
     borderRadius: 24,
-    backgroundColor: '#0d2137',
+    backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -197,6 +244,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
   },
+
   eyebrow: {
     fontSize: 11,
     fontWeight: '700',
@@ -204,6 +252,7 @@ const styles = StyleSheet.create({
     letterSpacing: 2.5,
     marginBottom: 10,
   },
+
   title: {
     fontSize: 36,
     fontWeight: '800',
@@ -212,9 +261,11 @@ const styles = StyleSheet.create({
     lineHeight: 42,
     marginBottom: 10,
   },
+
   titleHighlight: {
     color: '#43e97b',
   },
+
   subtitle: {
     fontSize: 14,
     color: '#5a7a8a',
@@ -227,25 +278,30 @@ const styles = StyleSheet.create({
     width: '100%',
     gap: 20,
   },
+
   inputWrapper: {
     gap: 8,
   },
+
   labelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+
   inputLabel: {
     fontSize: 13,
     fontWeight: '600',
     color: '#8ab0c0',
     letterSpacing: 0.3,
   },
+
   forgotLink: {
     fontSize: 12,
     color: '#43e97b',
     fontWeight: '500',
   },
+
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -257,22 +313,27 @@ const styles = StyleSheet.create({
     height: 54,
     gap: 10,
   },
+
   inputContainerFocused: {
     borderColor: 'rgba(67, 233, 123, 0.5)',
     backgroundColor: 'rgba(67, 233, 123, 0.04)',
   },
+
   inputIcon: {
     fontSize: 16,
   },
+
   input: {
     flex: 1,
     color: '#ffffff',
     fontSize: 15,
     fontWeight: '400',
   },
+
   eyeButton: {
     padding: 4,
   },
+
   eyeIcon: {
     fontSize: 16,
   },
@@ -283,6 +344,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 16,
   },
+
   primaryButton: {
     width: '100%',
     height: 56,
@@ -295,58 +357,12 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 12,
   },
+
   primaryButtonText: {
     fontSize: 14,
     fontWeight: '800',
     color: '#010d19',
     letterSpacing: 1.5,
-  },
-
-  // Divider
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    gap: 12,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-  },
-  dividerText: {
-    fontSize: 12,
-    color: '#3a5a6a',
-    fontWeight: '500',
-  },
-
-  // Social
-  socialRow: {
-    flexDirection: 'row',
-    gap: 12,
-    width: '100%',
-  },
-  socialButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    height: 50,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 14,
-  },
-  socialIcon: {
-    fontSize: 16,
-    color: '#ffffff',
-    fontWeight: '800',
-  },
-  socialText: {
-    fontSize: 14,
-    color: '#8ab0c0',
-    fontWeight: '600',
   },
 
   // Register
@@ -355,10 +371,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 4,
   },
+
   registerText: {
     fontSize: 14,
     color: '#5a7a8a',
   },
+
   registerLink: {
     fontSize: 14,
     color: '#43e97b',
