@@ -7,15 +7,18 @@ import {
   Dimensions,
   StatusBar,
 } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
 
 export default function OnboardingScreen() {
+  const router = useRouter();
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
+
       <LinearGradient
         colors={['#010d19', '#021a2e', '#010d19']}
         style={styles.container}
@@ -44,6 +47,7 @@ export default function OnboardingScreen() {
           <View style={[styles.chip, styles.chipLeft]}>
             <Text style={styles.chipText}>⚡ React Native</Text>
           </View>
+
           <View style={[styles.chip, styles.chipRight]}>
             <Text style={styles.chipText}>☁️ AWS</Text>
           </View>
@@ -52,13 +56,16 @@ export default function OnboardingScreen() {
         {/* Content */}
         <View style={styles.content}>
           <Text style={styles.eyebrow}>APRENDA NA PRÁTICA</Text>
+
           <Text style={styles.title}>
             Domine a{'\n'}
             <Text style={styles.titleHighlight}>Tecnologia</Text>
             {'\n'}do Futuro.
           </Text>
+
           <Text style={styles.description}>
-            Desafios gamificados, projetos reais e uma comunidade que cresce junto com você.
+            Desafios gamificados, projetos reais e uma comunidade que cresce
+            junto com você.
           </Text>
         </View>
 
@@ -68,12 +75,16 @@ export default function OnboardingScreen() {
             <Text style={styles.statNumber}>12k+</Text>
             <Text style={styles.statLabel}>Alunos</Text>
           </View>
+
           <View style={styles.statDivider} />
+
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>98%</Text>
             <Text style={styles.statLabel}>Satisfação</Text>
           </View>
+
           <View style={styles.statDivider} />
+
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>40+</Text>
             <Text style={styles.statLabel}>Módulos</Text>
@@ -82,19 +93,33 @@ export default function OnboardingScreen() {
 
         {/* Actions */}
         <View style={styles.actions}>
-          <TouchableOpacity activeOpacity={0.85} style={{ width: '100%' }}>
+          {/* BOTÃO CADASTRO */}
+          <TouchableOpacity
+            activeOpacity={0.85}
+            style={{ width: '100%' }}
+            onPress={() => router.push('/register')}
+          >
             <LinearGradient
               colors={['#43e97b', '#38f9d7']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.primaryButton}
             >
-              <Text style={styles.primaryButtonText}>COMEÇAR AGORA — É GRÁTIS</Text>
+              <Text style={styles.primaryButtonText}>
+                COMEÇAR AGORA — É GRÁTIS
+              </Text>
             </LinearGradient>
           </TouchableOpacity>
 
-          <TouchableOpacity activeOpacity={0.7} style={styles.secondaryButton}>
-            <Text style={styles.secondaryLink}>Já tenho uma conta</Text>
+          {/* BOTÃO LOGIN */}
+          <TouchableOpacity
+            activeOpacity={0.7}
+            style={styles.secondaryButton}
+            onPress={() => router.push('/login')}
+          >
+            <Text style={styles.secondaryLink}>
+              Já tenho uma conta
+            </Text>
           </TouchableOpacity>
         </View>
       </LinearGradient>
@@ -120,6 +145,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 999,
   },
+
   badgeText: {
     color: '#43e97b',
     fontSize: 12,
@@ -132,6 +158,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+
   glowRing: {
     width: 220,
     height: 220,
@@ -147,6 +174,7 @@ const styles = StyleSheet.create({
     shadowRadius: 40,
     elevation: 20,
   },
+
   illustrationBackground: {
     width: 180,
     height: 180,
@@ -158,6 +186,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
   },
+
   chip: {
     position: 'absolute',
     backgroundColor: '#0d2137',
@@ -167,14 +196,17 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 999,
   },
+
   chipLeft: {
     left: -20,
     bottom: 20,
   },
+
   chipRight: {
     right: -10,
     top: 20,
   },
+
   chipText: {
     color: '#43e97b',
     fontSize: 11,
@@ -186,6 +218,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 8,
   },
+
   eyebrow: {
     fontSize: 11,
     fontWeight: '700',
@@ -193,6 +226,7 @@ const styles = StyleSheet.create({
     letterSpacing: 2.5,
     marginBottom: 10,
   },
+
   title: {
     fontSize: 38,
     fontWeight: '800',
@@ -201,9 +235,11 @@ const styles = StyleSheet.create({
     lineHeight: 44,
     marginBottom: 12,
   },
+
   titleHighlight: {
     color: '#43e97b',
   },
+
   description: {
     fontSize: 15,
     color: '#5a7a8a',
@@ -225,21 +261,25 @@ const styles = StyleSheet.create({
     width: '100%',
     justifyContent: 'space-between',
   },
+
   statItem: {
     alignItems: 'center',
     flex: 1,
   },
+
   statNumber: {
     fontSize: 20,
     fontWeight: '800',
     color: '#ffffff',
   },
+
   statLabel: {
     fontSize: 11,
     color: '#5a7a8a',
     marginTop: 2,
     fontWeight: '500',
   },
+
   statDivider: {
     width: 1,
     height: 32,
@@ -252,6 +292,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
+
   primaryButton: {
     width: '100%',
     height: 56,
@@ -264,16 +305,19 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 12,
   },
+
   primaryButtonText: {
     fontSize: 14,
     fontWeight: '800',
     color: '#010d19',
     letterSpacing: 1,
   },
+
   secondaryButton: {
     paddingVertical: 8,
     paddingHorizontal: 16,
   },
+
   secondaryLink: {
     fontSize: 14,
     color: '#5a7a8a',
