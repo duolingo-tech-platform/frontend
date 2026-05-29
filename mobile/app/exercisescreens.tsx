@@ -1,739 +1,767 @@
-import { useState, CSSProperties } from "react";
+import { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  StatusBar,
+} from 'react-native';
+import { Stack, useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 
-const COLORS = {
-  bg: "#010d19",
-  bg2: "#021a2e",
-  accent: "#43e97b",
-  accentDim: "rgba(67,233,123,0.12)",
-  accentBorder: "rgba(67,233,123,0.3)",
-  accentBorder2: "rgba(67,233,123,0.15)",
-  text: "#ffffff",
-  muted: "#5a7a8a",
-  card: "rgba(255,255,255,0.04)",
-  cardBorder: "rgba(255,255,255,0.07)",
-  danger: "#ff4d6d",
-  dangerDim: "rgba(255,77,109,0.12)",
+// ─── Design Tokens ────────────────────────────────────────────────────────────
+
+const C = {
+  bg: '#010d19',
+  bg2: '#021a2e',
+  accent: '#43e97b',
+  accentDim: 'rgba(67,233,123,0.12)',
+  accentBorder: 'rgba(67,233,123,0.3)',
+  text: '#ffffff',
+  muted: '#5a7a8a',
+  card: 'rgba(255,255,255,0.04)',
+  cardBorder: 'rgba(255,255,255,0.07)',
+  danger: '#ff4d6d',
+  dangerDim: 'rgba(255,77,109,0.12)',
+  dangerBorder: 'rgba(255,77,109,0.3)',
 };
 
-const s: Record<string, CSSProperties> = {
-  screen: {
-    background: `linear-gradient(160deg, ${COLORS.bg} 0%, ${COLORS.bg2} 50%, ${COLORS.bg} 100%)`,
-    minHeight: "100vh",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    padding: "24px",
-    gap: "22px",
-    fontFamily: "'Inter', 'SF Pro Display', -apple-system, sans-serif",
-    boxSizing: "border-box",
-  },
-  badge: {
-    background: COLORS.accentDim,
-    border: `1px solid ${COLORS.accentBorder}`,
-    padding: "6px 16px",
-    borderRadius: "999px",
-    color: COLORS.accent,
-    fontSize: "12px",
-    fontWeight: 600,
-    letterSpacing: "0.3px",
-    alignSelf: "center",
-  },
-  progressBar: {
-    width: "100%",
-    height: "4px",
-    background: "rgba(255,255,255,0.08)",
-    borderRadius: "999px",
-    overflow: "hidden",
-  },
-  card: {
-    background: COLORS.card,
-    border: `1px solid ${COLORS.cardBorder}`,
-    borderRadius: "16px",
-    padding: "20px",
-    width: "100%",
-    boxSizing: "border-box",
-  },
-  eyebrow: {
-    fontSize: "11px",
-    fontWeight: 700,
-    color: COLORS.accent,
-    letterSpacing: "2.5px",
-    textAlign: "center",
-  },
-  title: {
-    fontSize: "26px",
-    fontWeight: 800,
-    color: COLORS.text,
-    textAlign: "center",
-    lineHeight: 1.3,
-    margin: 0,
-  },
-  titleHighlight: { color: COLORS.accent },
-  desc: {
-    fontSize: "14px",
-    color: COLORS.muted,
-    textAlign: "center",
-    lineHeight: 1.6,
-    margin: 0,
-  },
-  primaryBtn: {
-    width: "100%",
-    height: "52px",
-    borderRadius: "14px",
-    border: "none",
-    cursor: "pointer",
-    fontSize: "13px",
-    fontWeight: 800,
-    color: COLORS.bg,
-    letterSpacing: "1px",
-    background: "linear-gradient(90deg,#43e97b,#38f9d7)",
-    boxShadow: "0 8px 32px rgba(67,233,123,0.3)",
-  },
-  secondaryBtn: {
-    width: "100%",
-    height: "52px",
-    borderRadius: "14px",
-    border: `1px solid ${COLORS.accentBorder}`,
-    cursor: "pointer",
-    fontSize: "13px",
-    fontWeight: 700,
-    color: COLORS.accent,
-    background: COLORS.accentDim,
-    letterSpacing: "0.5px",
-  },
-  chip: {
-    background: "#0d2137",
-    border: `1px solid ${COLORS.accentBorder}`,
-    padding: "5px 12px",
-    borderRadius: "999px",
-    color: COLORS.accent,
-    fontSize: "11px",
-    fontWeight: 600,
-  },
-};
+// ─── Shared Components ────────────────────────────────────────────────────────
 
-function ProgressBar({ value, total }: { value: number; total: number }) {
+function ProgressBar({ step, total }: { step: number; total: number }) {
+  const pct = Math.round((step / total) * 100);
   return (
-    <div style={{ ...s.progressBar, width: "100%" }}>
-      <div
-        style={{
-          height: "100%",
-          width: `${(value / total) * 100}%`,
-          background: "linear-gradient(90deg,#43e97b,#38f9d7)",
-          borderRadius: "999px",
-          transition: "width 0.4s ease",
-        }}
+    <View style={sh.progressBg}>
+      <LinearGradient
+        colors={['#43e97b', '#38f9d7']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={[sh.progressFill, { width: `${pct}%` as any }]}
       />
-    </div>
+    </View>
   );
 }
 
-function TopBar({ label, step, total }: { label: string; step: number; total: number }) {
+function TopBar({
+  label, step, total, onBack,
+}: { label: string; step: number; total: number; onBack: () => void }) {
   return (
-    <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "10px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontSize: "12px", color: COLORS.muted, fontWeight: 600 }}>
-          {label}
-        </span>
-        <span
-          style={{
-            fontSize: "12px",
-            fontWeight: 700,
-            color: COLORS.accent,
-            background: COLORS.accentDim,
-            border: `1px solid ${COLORS.accentBorder}`,
-            padding: "3px 10px",
-            borderRadius: "999px",
-          }}
-        >
-          {step}/{total}
-        </span>
-      </div>
-      <ProgressBar value={step} total={total} />
-    </div>
+    <View style={sh.topBar}>
+      <TouchableOpacity onPress={onBack} activeOpacity={0.7} style={sh.backBtn}>
+        <Text style={sh.backArrow}>‹</Text>
+        <Text style={sh.backLabel}>Lição</Text>
+      </TouchableOpacity>
+      <View style={sh.topBarCenter}>
+        <ProgressBar step={step} total={total} />
+      </View>
+      <View style={sh.stepBadge}>
+        <Text style={sh.stepText}>{step}/{total}</Text>
+      </View>
+    </View>
   );
 }
 
-// ─── TELA 1: Questão de Múltipla Escolha ───────────────────────────────────
+function StatCard({ icon, value, label }: { icon: string; value: string; label: string }) {
+  return (
+    <View style={sh.statCard}>
+      <Text style={sh.statIcon}>{icon}</Text>
+      <Text style={sh.statValue}>{value}</Text>
+      <Text style={sh.statLabel}>{label}</Text>
+    </View>
+  );
+}
 
-function TelaQuestao({ onNext }: { onNext: () => void }) {
+// ─── TELA 1: Múltipla Escolha ─────────────────────────────────────────────────
+
+const MC_OPTIONS = [
+  { id: 'a', text: 'Organiza componentes em árvores virtuais para update eficiente do DOM' },
+  { id: 'b', text: 'É um banco de dados em memória para armazenar estado global' },
+  { id: 'c', text: 'Substitui o JavaScript no navegador com código binário' },
+  { id: 'd', text: 'Gerencia requisições HTTP de forma assíncrona' },
+];
+
+function TelaQuestao({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
   const [selected, setSelected] = useState<string | null>(null);
 
-  const options = [
-    { id: "a", text: "Organiza componentes em árvores virtuais para update eficiente do DOM" },
-    { id: "b", text: "É um banco de dados em memória para armazenar estado global" },
-    { id: "c", text: "Substitui o JavaScript no navegador com código binário" },
-    { id: "d", text: "Gerencia requisições HTTP de forma assíncrona" },
-  ];
-
-  const getOptionStyle = (id: string): CSSProperties => ({
-    display: "flex",
-    alignItems: "flex-start",
-    gap: "12px",
-    padding: "14px 16px",
-    borderRadius: "12px",
-    border: `1px solid ${selected === id ? COLORS.accentBorder : COLORS.cardBorder}`,
-    background: selected === id ? COLORS.accentDim : COLORS.card,
-    cursor: "pointer",
-    transition: "all 0.2s ease",
-    width: "100%",
-    boxSizing: "border-box",
-  });
-
   return (
-    <div style={s.screen}>
-      <TopBar label="REACT NATIVE · MÓDULO 3" step={3} total={8} />
-
-      <div style={{ ...s.badge }}>🎯 Questão Conceitual</div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%", textAlign: "center" }}>
-        <p style={s.eyebrow}>PERGUNTA</p>
-        <p style={{ ...s.title, fontSize: "20px" }}>
-          O que é o{" "}
-          <span style={s.titleHighlight}>Virtual DOM</span>
-          {" "}no React?
-        </p>
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%" }}>
-        {options.map((opt) => (
-          <button
-            key={opt.id}
-            style={getOptionStyle(opt.id)}
-            onClick={() => setSelected(opt.id)}
-          >
-            <div
-              style={{
-                minWidth: "28px",
-                height: "28px",
-                borderRadius: "50%",
-                background: selected === opt.id ? COLORS.accent : "rgba(255,255,255,0.06)",
-                border: `1px solid ${selected === opt.id ? COLORS.accent : COLORS.cardBorder}`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: 700,
-                fontSize: "12px",
-                color: selected === opt.id ? COLORS.bg : COLORS.muted,
-                transition: "all 0.2s",
-              }}
-            >
-              {opt.id.toUpperCase()}
-            </div>
-            <span
-              style={{
-                fontSize: "13px",
-                color: selected === opt.id ? COLORS.text : COLORS.muted,
-                lineHeight: 1.5,
-                textAlign: "left",
-              }}
-            >
-              {opt.text}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      <div
-        style={{
-          ...s.card,
-          display: "flex",
-          justifyContent: "space-around",
-          padding: "14px 24px",
-        }}
-      >
-        {[["⏱️", "1:45", "Tempo"], ["💡", "2", "Dicas"], ["⭐", "+30", "XP"]].map(
-          ([icon, val, label]) => (
-            <div key={label} style={{ textAlign: "center" }}>
-              <div style={{ fontSize: "16px" }}>{icon}</div>
-              <div style={{ fontSize: "17px", fontWeight: 800, color: COLORS.text }}>{val}</div>
-              <div style={{ fontSize: "10px", color: COLORS.muted, marginTop: "2px" }}>{label}</div>
-            </div>
-          )
-        )}
-      </div>
-
-      <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "10px" }}>
-        <button style={{ ...s.primaryBtn, opacity: selected ? 1 : 0.4 }} onClick={onNext}>
-          CONFIRMAR RESPOSTA →
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ─── TELA 2: Completar Código ───────────────────────────────────────────────
-
-function TelaCompletarCodigo({ onNext }: { onNext: () => void }) {
-  const [blanks, setBlanks] = useState<Record<string, string>>({ a: "", b: "", c: "" });
-
-  const tokens = [
-    "useState", "useEffect", "props", "return", "const", "async", "render", "import",
-  ];
-
-  const setBlank = (key: string, val: string) =>
-    setBlanks((prev) => ({ ...prev, [key]: prev[key] === val ? "" : val }));
-
-  const blank = (key: string) => (
-    <button
-      onClick={() => setBlank(key, "")}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        minWidth: "90px",
-        height: "22px",
-        borderRadius: "6px",
-        border: `1px dashed ${blanks[key] ? COLORS.accent : "rgba(67,233,123,0.4)"}`,
-        background: blanks[key] ? COLORS.accentDim : "transparent",
-        color: blanks[key] ? COLORS.accent : "rgba(67,233,123,0.5)",
-        fontSize: "12px",
-        fontFamily: "'Fira Code', 'JetBrains Mono', monospace",
-        fontWeight: 600,
-        cursor: blanks[key] ? "pointer" : "default",
-        padding: "0 8px",
-        verticalAlign: "middle",
-        margin: "0 2px",
-      }}
+    <ScrollView
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={sh.screen}
     >
-      {blanks[key] || "______"}
-    </button>
-  );
+      <TopBar label="REACT NATIVE · MÓDULO 3" step={3} total={8} onBack={onBack} />
 
-  const filled = Object.values(blanks).filter(Boolean).length;
+      <View style={sh.badge}>
+        <Text style={sh.badgeText}>🎯 Questão Conceitual</Text>
+      </View>
 
-  return (
-    <div style={s.screen}>
-      <TopBar label="AWS · MÓDULO 2" step={5} total={8} />
+      <View style={{ alignItems: 'center', gap: 6 }}>
+        <Text style={sh.eyebrow}>PERGUNTA</Text>
+        <Text style={sh.title}>
+          O que é o{' '}
+          <Text style={sh.titleHighlight}>Virtual DOM</Text>
+          {' '}no React?
+        </Text>
+      </View>
 
-      <div style={s.badge}>💻 Complete o Código</div>
-
-      <div style={{ textAlign: "center" }}>
-        <p style={s.eyebrow}>DESAFIO</p>
-        <p style={{ ...s.title, fontSize: "20px" }}>
-          Preencha os{" "}
-          <span style={s.titleHighlight}>espaços</span>{" "}
-          em branco
-        </p>
-        <p style={{ ...s.desc, marginTop: "6px" }}>
-          Arraste ou toque nos tokens abaixo para completar o código
-        </p>
-      </div>
-
-      <div
-        style={{
-          ...s.card,
-          fontFamily: "'Fira Code', 'JetBrains Mono', monospace",
-          fontSize: "13px",
-          lineHeight: 2,
-        }}
-      >
-        <div style={{ color: COLORS.muted, marginBottom: "4px", fontSize: "11px" }}>
-          Counter.tsx
-        </div>
-        <div>
-          <span style={{ color: "#569cd6" }}>function</span>{" "}
-          <span style={{ color: "#dcdcaa" }}>Counter</span>
-          <span style={{ color: COLORS.text }}>() {"{"}</span>
-        </div>
-        <div style={{ paddingLeft: "20px" }}>
-          <span style={{ color: "#c586c0" }}>const</span>{" "}
-          <span style={{ color: COLORS.text }}>[count, setCount] = </span>
-          {blank("a")}
-          <span style={{ color: COLORS.text }}>(0);</span>
-        </div>
-        <div style={{ paddingLeft: "20px" }}>
-          {blank("b")}
-          <span style={{ color: COLORS.text }}>(() ={">"} {"{"}</span>
-        </div>
-        <div style={{ paddingLeft: "40px" }}>
-          <span style={{ color: "#9cdcfe" }}>document</span>
-          <span style={{ color: COLORS.text }}>.title = count;</span>
-        </div>
-        <div style={{ paddingLeft: "20px" }}>
-          <span style={{ color: COLORS.text }}>{"}"}, [count]);</span>
-        </div>
-        <div style={{ paddingLeft: "20px" }}>
-          <span style={{ color: "#c586c0" }}>return</span>{" "}
-          <span style={{ color: COLORS.text }}>{"<"}</span>
-          <span style={{ color: "#4ec9b0" }}>button</span>{" "}
-          <span style={{ color: "#9cdcfe" }}>onClick</span>
-          <span style={{ color: COLORS.text }}>={"{"}</span>
-          {blank("c")}
-          <span style={{ color: COLORS.text }}>{"}>"}</span>Count:{" "}<span style={{ color: COLORS.text }}>{"{"}</span>
-          <span style={{ color: "#9cdcfe" }}>count</span>
-          <span style={{ color: COLORS.text }}>{"}</"}</span>
-          <span style={{ color: "#4ec9b0" }}>button</span>
-          <span style={{ color: COLORS.text }}>{">"}</span>
-        </div>
-        <span style={{ color: COLORS.text }}>{"}"}</span>
-      </div>
-
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", justifyContent: "center" }}>
-        {tokens.map((t) => (
-          <button
-            key={t}
-            style={{
-              padding: "7px 14px",
-              borderRadius: "8px",
-              border: `1px solid ${COLORS.accentBorder}`,
-              background: Object.values(blanks).includes(t) ? "rgba(67,233,123,0.25)" : COLORS.accentDim,
-              color: COLORS.accent,
-              fontSize: "12px",
-              fontWeight: 600,
-              fontFamily: "'Fira Code', monospace",
-              cursor: "pointer",
-              opacity: Object.values(blanks).includes(t) ? 0.4 : 1,
-            }}
-            onClick={() => {
-              const emptyKey = ["a", "b", "c"].find((k) => !blanks[k]);
-              if (emptyKey && !Object.values(blanks).includes(t))
-                setBlanks((prev) => ({ ...prev, [emptyKey]: t }));
-            }}
+      <View style={sh.optionsList}>
+        {MC_OPTIONS.map(opt => (
+          <TouchableOpacity
+            key={opt.id}
+            activeOpacity={0.8}
+            onPress={() => setSelected(opt.id)}
+            style={[sh.option, selected === opt.id && sh.optionSelected]}
           >
-            {t}
-          </button>
+            <View style={[sh.optionBubble, selected === opt.id && sh.optionBubbleSelected]}>
+              <Text style={[sh.optionBubbleText, selected === opt.id && sh.optionBubbleTextSelected]}>
+                {opt.id.toUpperCase()}
+              </Text>
+            </View>
+            <Text style={[sh.optionText, selected === opt.id && sh.optionTextSelected]}>
+              {opt.text}
+            </Text>
+          </TouchableOpacity>
         ))}
-      </div>
+      </View>
 
-      <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "10px" }}>
-        <button
-          style={{ ...s.primaryBtn, opacity: filled === 3 ? 1 : 0.4 }}
-          onClick={onNext}
+      <View style={sh.statsRow}>
+        <StatCard icon="⏱️" value="1:45" label="Tempo" />
+        <View style={sh.statDivider} />
+        <StatCard icon="💡" value="2" label="Dicas" />
+        <View style={sh.statDivider} />
+        <StatCard icon="⭐" value="+30" label="XP" />
+      </View>
+
+      <TouchableOpacity
+        activeOpacity={selected ? 0.85 : 1}
+        style={{ width: '100%', opacity: selected ? 1 : 0.4 }}
+        onPress={selected ? onNext : undefined}
+      >
+        <LinearGradient
+          colors={['#43e97b', '#38f9d7']}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+          style={sh.primaryBtn}
         >
-          VERIFICAR CÓDIGO →
-        </button>
-        <button
-          style={{
-            ...s.secondaryBtn,
-            fontSize: "12px",
-            height: "40px",
-          }}
-          onClick={() => setBlanks({ a: "", b: "", c: "" })}
-        >
-          LIMPAR TUDO
-        </button>
-      </div>
-    </div>
+          <Text style={sh.primaryBtnText}>CONFIRMAR RESPOSTA →</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    </ScrollView>
   );
 }
 
-// ─── TELA 3: Verdadeiro / Falso ─────────────────────────────────────────────
+// ─── TELA 2: Feedback ─────────────────────────────────────────────────────────
 
-function TelaVerdadeiroFalso({ onNext }: { onNext: () => void }) {
-  const [answer, setAnswer] = useState<string | null>(null);
-
-  return (
-    <div style={s.screen}>
-      <TopBar label="REACT NATIVE · MÓDULO 4" step={6} total={8} />
-
-      <div style={s.badge}>⚡ Verdadeiro ou Falso</div>
-
-      <div style={{ textAlign: "center", display: "flex", flexDirection: "column", gap: "6px" }}>
-        <p style={s.eyebrow}>AFIRMAÇÃO</p>
-        <p style={{ ...s.title, fontSize: "20px" }}>
-          É possível usar{" "}
-          <span style={s.titleHighlight}>Hooks</span>{" "}
-          dentro de loops em React
-        </p>
-      </div>
-
-      <div
-        style={{
-          ...s.card,
-          display: "flex",
-          gap: "12px",
-          alignItems: "flex-start",
-        }}
-      >
-        <div
-          style={{
-            fontSize: "28px",
-            background: "rgba(67,233,123,0.1)",
-            width: "44px",
-            height: "44px",
-            borderRadius: "12px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-          }}
-        >
-          💡
-        </div>
-        <div>
-          <p style={{ ...s.eyebrow, textAlign: "left", marginBottom: "4px" }}>DICA</p>
-          <p style={{ ...s.desc, textAlign: "left", fontSize: "13px" }}>
-            Pense nas Regras dos Hooks — React precisa garantir a mesma ordem de chamada em cada render.
-          </p>
-        </div>
-      </div>
-
-      <div style={{ display: "flex", gap: "12px", width: "100%" }}>
-        {[
-          { val: "true", label: "VERDADEIRO", icon: "✓", color: COLORS.accent, dimColor: COLORS.accentDim, borderColor: COLORS.accentBorder },
-          { val: "false", label: "FALSO", icon: "✗", color: COLORS.danger, dimColor: COLORS.dangerDim, borderColor: "rgba(255,77,109,0.3)" },
-        ].map(({ val, label, icon, color, dimColor, borderColor }) => (
-          <button
-            key={val}
-            onClick={() => { setAnswer(val); }}
-            style={{
-              flex: 1,
-              height: "120px",
-              borderRadius: "16px",
-              border: `2px solid ${answer === val ? borderColor : COLORS.cardBorder}`,
-              background: answer === val ? dimColor : COLORS.card,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px",
-              cursor: "pointer",
-              transition: "all 0.2s",
-            }}
-          >
-            <div
-              style={{
-                width: "44px",
-                height: "44px",
-                borderRadius: "50%",
-                background: answer === val ? color : "rgba(255,255,255,0.06)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "22px",
-                color: answer === val ? COLORS.bg : COLORS.muted,
-                fontWeight: 800,
-                transition: "all 0.2s",
-              }}
-            >
-              {icon}
-            </div>
-            <span
-              style={{
-                fontSize: "11px",
-                fontWeight: 800,
-                letterSpacing: "1.5px",
-                color: answer === val ? color : COLORS.muted,
-              }}
-            >
-              {label}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      <div
-        style={{
-          ...s.card,
-          display: "flex",
-          justifyContent: "space-around",
-          padding: "14px 24px",
-        }}
-      >
-        {[["🔥", "5", "Sequência"], ["⚡", "+20", "XP"], ["🏆", "Top 12%", "Ranking"]].map(
-          ([icon, val, label]) => (
-            <div key={label} style={{ textAlign: "center" }}>
-              <div style={{ fontSize: "16px" }}>{icon}</div>
-              <div style={{ fontSize: "16px", fontWeight: 800, color: COLORS.text }}>{val}</div>
-              <div style={{ fontSize: "10px", color: COLORS.muted, marginTop: "2px" }}>{label}</div>
-            </div>
-          )
-        )}
-      </div>
-
-      <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "10px" }}>
-        <button
-          style={{ ...s.primaryBtn, opacity: answer ? 1 : 0.4 }}
-          onClick={onNext}
-        >
-          CONFIRMAR →
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ─── TELA 4: Feedback Resposta ──────────────────────────────────────────────
-
-function TelaFeedback({ onNext, onRestart }: { onNext: () => void; onRestart: () => void }) {
+function TelaFeedback({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
   const isCorrect = true;
 
   return (
-    <div style={s.screen}>
-      <TopBar label="REACT NATIVE · MÓDULO 4" step={7} total={8} />
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={sh.screen}>
+      <TopBar label="REACT NATIVE · MÓDULO 3" step={4} total={8} onBack={onBack} />
 
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: "16px",
-          textAlign: "center",
-        }}
-      >
-        <div
-          style={{
-            width: "90px",
-            height: "90px",
-            borderRadius: "50%",
-            background: isCorrect ? "rgba(67,233,123,0.15)" : COLORS.dangerDim,
-            border: `2px solid ${isCorrect ? COLORS.accentBorder : "rgba(255,77,109,0.3)"}`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "42px",
-            boxShadow: isCorrect
-              ? "0 0 40px rgba(67,233,123,0.25)"
-              : "0 0 40px rgba(255,77,109,0.2)",
-          }}
-        >
-          {isCorrect ? "✓" : "✗"}
-        </div>
+      <View style={{ alignItems: 'center', gap: 14 }}>
+        <View style={[
+          sh.feedbackCircle,
+          { backgroundColor: isCorrect ? C.accentDim : C.dangerDim, borderColor: isCorrect ? C.accentBorder : C.dangerBorder },
+        ]}>
+          <Text style={[sh.feedbackIcon, { color: isCorrect ? C.accent : C.danger }]}>
+            {isCorrect ? '✓' : '✗'}
+          </Text>
+        </View>
+        <Text style={[sh.eyebrow, { color: isCorrect ? C.accent : C.danger }]}>
+          {isCorrect ? 'RESPOSTA CORRETA!' : 'RESPOSTA ERRADA'}
+        </Text>
+        <Text style={sh.title}>
+          {isCorrect ? 'Excelente ' : 'Quase '}
+          <Text style={isCorrect ? sh.titleHighlight : { color: C.danger }}>
+            {isCorrect ? 'raciocínio!' : 'lá!'}
+          </Text>
+        </Text>
+      </View>
 
-        <div>
-          <p style={{ ...s.eyebrow, marginBottom: "6px" }}>
-            {isCorrect ? "RESPOSTA CORRETA!" : "RESPOSTA ERRADA"}
-          </p>
-          <p style={{ ...s.title, fontSize: "24px" }}>
-            {isCorrect ? (
-              <>
-                Excelente{" "}
-                <span style={s.titleHighlight}>raciocínio!</span>
-              </>
-            ) : (
-              <>
-                Quase{" "}
-                <span style={{ color: COLORS.danger }}>lá!</span>
-              </>
-            )}
-          </p>
-        </div>
-      </div>
-
-      <div style={{ ...s.card }}>
-        <p
-          style={{
-            ...s.eyebrow,
-            textAlign: "left",
-            marginBottom: "10px",
-            fontSize: "10px",
-          }}
-        >
-          📖 EXPLICAÇÃO
-        </p>
-        <p style={{ ...s.desc, textAlign: "left", fontSize: "13px", lineHeight: 1.7 }}>
+      <View style={sh.card}>
+        <Text style={[sh.eyebrow, { textAlign: 'left', marginBottom: 10 }]}>📖 EXPLICAÇÃO</Text>
+        <Text style={sh.cardDesc}>
           O Virtual DOM é uma representação leve do DOM real mantida em memória. O React compara
           o estado anterior com o novo (diffing) e aplica apenas as mudanças necessárias no DOM
           real, tornando as atualizações muito mais eficientes.
-        </p>
-      </div>
+        </Text>
+      </View>
 
-      <div style={{ display: "flex", gap: "10px", width: "100%" }}>
-        {[
-          { icon: "⭐", label: "+30 XP", sub: "Ganhos" },
-          { icon: "🔥", label: "6", sub: "Sequência" },
-          { icon: "⚡", label: "1:12", sub: "Tempo" },
-        ].map(({ icon, label, sub }) => (
-          <div
-            key={sub}
-            style={{
-              flex: 1,
-              ...s.card,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "4px",
-              padding: "14px 8px",
-            }}
-          >
-            <span style={{ fontSize: "20px" }}>{icon}</span>
-            <span style={{ fontSize: "16px", fontWeight: 800, color: COLORS.text }}>{label}</span>
-            <span style={{ fontSize: "10px", color: COLORS.muted }}>{sub}</span>
-          </div>
-        ))}
-      </div>
+      <View style={sh.statsRowSmall}>
+        <StatCard icon="⭐" value="+30 XP" label="Ganhos" />
+        <View style={sh.statDivider} />
+        <StatCard icon="🔥" value="6" label="Sequência" />
+        <View style={sh.statDivider} />
+        <StatCard icon="⚡" value="1:12" label="Tempo" />
+      </View>
 
-      <div style={{ ...s.card }}>
-        <p style={{ ...s.eyebrow, textAlign: "left", marginBottom: "10px", fontSize: "10px" }}>
-          🔗 CONCEITOS RELACIONADOS
-        </p>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-          {["Reconciliation", "React Fiber", "Re-render", "Diffing Algorithm"].map((t) => (
-            <span key={t} style={s.chip}>{t}</span>
+      <View style={sh.card}>
+        <Text style={[sh.eyebrow, { textAlign: 'left', marginBottom: 10 }]}>🔗 CONCEITOS RELACIONADOS</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {['Reconciliation', 'React Fiber', 'Re-render', 'Diffing Algorithm'].map(t => (
+            <View key={t} style={sh.chip}>
+              <Text style={sh.chipText}>{t}</Text>
+            </View>
           ))}
-        </div>
-      </div>
+        </View>
+      </View>
 
-      <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "10px" }}>
-        <button style={s.primaryBtn} onClick={onNext}>
-          PRÓXIMA QUESTÃO →
-        </button>
-        <button
-          style={{
-            ...s.secondaryBtn,
-            height: "40px",
-            fontSize: "12px",
-          }}
-          onClick={onRestart}
+      <TouchableOpacity activeOpacity={0.85} style={{ width: '100%' }} onPress={onNext}>
+        <LinearGradient
+          colors={['#43e97b', '#38f9d7']}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+          style={sh.primaryBtn}
         >
-          VER EXPLICAÇÃO COMPLETA
-        </button>
-      </div>
-    </div>
+          <Text style={sh.primaryBtnText}>PRÓXIMA QUESTÃO →</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    </ScrollView>
   );
 }
 
-// ─── NAV / ROOT ─────────────────────────────────────────────────────────────
+// ─── TELA 3: Verdadeiro / Falso ───────────────────────────────────────────────
 
-const SCREENS = ["questao", "codigo", "verdfalso", "feedback"];
-
-export default function App() {
-  const [idx, setIdx] = useState(0);
-
-  const next = () => setIdx((i) => Math.min(i + 1, SCREENS.length - 1));
-  const restart = () => setIdx(0);
-
-  const screen = SCREENS[idx];
-
-  const navStyle: CSSProperties = {
-    display: "flex",
-    justifyContent: "center",
-    gap: "8px",
-    padding: "12px 24px 20px",
-    background: "#010d19",
-    width: "100%",
-    boxSizing: "border-box",
-  };
-
-  const navBtn = (i: number) => ({
-    padding: "6px 14px",
-    borderRadius: "999px",
-    border: `1px solid ${i === idx ? COLORS.accentBorder : COLORS.cardBorder}`,
-    background: i === idx ? COLORS.accentDim : "transparent",
-    color: i === idx ? COLORS.accent : COLORS.muted,
-    fontSize: "11px",
-    fontWeight: 700,
-    cursor: "pointer",
-    letterSpacing: "0.5px",
-  });
-
-  const LABELS = ["Questão", "Código", "V/F", "Feedback"];
+function TelaVerdadeiroFalso({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
+  const [answer, setAnswer] = useState<string | null>(null);
 
   return (
-    <div style={{ background: "#010d19", minHeight: "100vh" }}>
-      <div style={navStyle}>
-        {LABELS.map((l, i) => (
-          <button key={l} style={navBtn(i)} onClick={() => setIdx(i)}>
-            {l}
-          </button>
-        ))}
-      </div>
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={sh.screen}>
+      <TopBar label="REACT NATIVE · MÓDULO 4" step={5} total={8} onBack={onBack} />
 
-      {screen === "questao" && <TelaQuestao onNext={next} />}
-      {screen === "codigo" && <TelaCompletarCodigo onNext={next} />}
-      {screen === "verdfalso" && <TelaVerdadeiroFalso onNext={next} />}
-      {screen === "feedback" && <TelaFeedback onNext={next} onRestart={restart} />}
-    </div>
+      <View style={sh.badge}>
+        <Text style={sh.badgeText}>⚡ Verdadeiro ou Falso</Text>
+      </View>
+
+      <View style={{ alignItems: 'center', gap: 6 }}>
+        <Text style={sh.eyebrow}>AFIRMAÇÃO</Text>
+        <Text style={sh.title}>
+          É possível usar{' '}
+          <Text style={sh.titleHighlight}>Hooks</Text>
+          {' '}dentro de loops em React
+        </Text>
+      </View>
+
+      <View style={sh.card}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+          <View style={sh.hintIcon}>
+            <Text style={{ fontSize: 20 }}>💡</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[sh.eyebrow, { textAlign: 'left', marginBottom: 4 }]}>DICA</Text>
+            <Text style={sh.cardDesc}>
+              Pense nas Regras dos Hooks — React precisa garantir a mesma ordem de chamada em cada render.
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={{ flexDirection: 'row', gap: 12, width: '100%' }}>
+        {[
+          { val: 'true', label: 'VERDADEIRO', icon: '✓', color: C.accent, dim: C.accentDim, border: C.accentBorder },
+          { val: 'false', label: 'FALSO', icon: '✗', color: C.danger, dim: C.dangerDim, border: C.dangerBorder },
+        ].map(({ val, label, icon, color, dim, border }) => (
+          <TouchableOpacity
+            key={val}
+            activeOpacity={0.8}
+            onPress={() => setAnswer(val)}
+            style={[
+              sh.tfButton,
+              answer === val && { borderColor: border, backgroundColor: dim },
+            ]}
+          >
+            <View style={[sh.tfIcon, answer === val && { backgroundColor: color, borderColor: color }]}>
+              <Text style={[sh.tfIconText, answer === val && { color: C.bg }]}>{icon}</Text>
+            </View>
+            <Text style={[sh.tfLabel, answer === val && { color }]}>{label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <View style={sh.statsRow}>
+        <StatCard icon="🔥" value="5" label="Sequência" />
+        <View style={sh.statDivider} />
+        <StatCard icon="⚡" value="+20" label="XP" />
+        <View style={sh.statDivider} />
+        <StatCard icon="🏆" value="Top 12%" label="Ranking" />
+      </View>
+
+      <TouchableOpacity
+        activeOpacity={answer ? 0.85 : 1}
+        style={{ width: '100%', opacity: answer ? 1 : 0.4 }}
+        onPress={answer ? onNext : undefined}
+      >
+        <LinearGradient
+          colors={['#43e97b', '#38f9d7']}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+          style={sh.primaryBtn}
+        >
+          <Text style={sh.primaryBtnText}>CONFIRMAR →</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    </ScrollView>
   );
 }
+
+// ─── TELA 4: Completar Código ─────────────────────────────────────────────────
+
+const CODE_TOKENS = ['useState', 'useEffect', 'props', 'return', 'const', 'async', 'render', 'import'];
+
+function TelaCompletarCodigo({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
+  const [blanks, setBlanks] = useState<Record<string, string>>({ a: '', b: '', c: '' });
+
+  const fillBlank = (token: string) => {
+    if (Object.values(blanks).includes(token)) {
+      setBlanks(prev => {
+        const next = { ...prev };
+        for (const k of Object.keys(next)) {
+          if (next[k] === token) next[k] = '';
+        }
+        return next;
+      });
+      return;
+    }
+    const emptyKey = ['a', 'b', 'c'].find(k => !blanks[k]);
+    if (emptyKey) setBlanks(prev => ({ ...prev, [emptyKey]: token }));
+  };
+
+  const clearBlank = (key: string) => setBlanks(prev => ({ ...prev, [key]: '' }));
+
+  const filled = Object.values(blanks).filter(Boolean).length;
+
+  function BlankSlot({ k }: { k: string }) {
+    return (
+      <TouchableOpacity
+        onPress={() => blanks[k] ? clearBlank(k) : undefined}
+        activeOpacity={blanks[k] ? 0.7 : 1}
+        style={[sh.blankSlot, blanks[k] ? sh.blankSlotFilled : null]}
+      >
+        <Text style={[sh.blankText, blanks[k] ? sh.blankTextFilled : null]}>
+          {blanks[k] || '______'}
+        </Text>
+      </TouchableOpacity>
+    );
+  }
+
+  return (
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={sh.screen}>
+      <TopBar label="REACT NATIVE · MÓDULO 3" step={6} total={8} onBack={onBack} />
+
+      <View style={sh.badge}>
+        <Text style={sh.badgeText}>💻 Complete o Código</Text>
+      </View>
+
+      <View style={{ alignItems: 'center', gap: 6 }}>
+        <Text style={sh.eyebrow}>DESAFIO</Text>
+        <Text style={sh.title}>
+          Preencha os{' '}
+          <Text style={sh.titleHighlight}>espaços</Text>
+          {' '}em branco
+        </Text>
+        <Text style={sh.subtitle}>Toque nos tokens abaixo para preencher</Text>
+      </View>
+
+      <View style={sh.codeCard}>
+        <Text style={sh.codeFileName}>Counter.tsx</Text>
+
+        <View style={sh.codeLine}>
+          <Text style={sh.kw}>function </Text>
+          <Text style={sh.fn}>Counter</Text>
+          <Text style={sh.code}>() {'{'}</Text>
+        </View>
+        <View style={[sh.codeLine, { paddingLeft: 20 }]}>
+          <Text style={sh.kw}>const </Text>
+          <Text style={sh.code}>[count, setCount] = </Text>
+          <BlankSlot k="a" />
+          <Text style={sh.code}>(0);</Text>
+        </View>
+        <View style={[sh.codeLine, { paddingLeft: 20 }]}>
+          <BlankSlot k="b" />
+          <Text style={sh.code}>{'(() => {'}</Text>
+        </View>
+        <View style={[sh.codeLine, { paddingLeft: 40 }]}>
+          <Text style={sh.prop}>document</Text>
+          <Text style={sh.code}>.title = count;</Text>
+        </View>
+        <View style={[sh.codeLine, { paddingLeft: 20 }]}>
+          <Text style={sh.code}>{'}'}, [count]);</Text>
+        </View>
+        <View style={[sh.codeLine, { paddingLeft: 20, flexWrap: 'wrap' }]}>
+          <Text style={sh.kw}>return </Text>
+          <Text style={sh.code}>{'<button onClick={'}</Text>
+          <BlankSlot k="c" />
+          <Text style={sh.code}>{'}>'}</Text>
+          <Text style={sh.prop}>count</Text>
+          <Text style={sh.code}>{'</button>'}</Text>
+        </View>
+        <View style={sh.codeLine}>
+          <Text style={sh.code}>{'}'}</Text>
+        </View>
+      </View>
+
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+        {CODE_TOKENS.map(t => {
+          const used = Object.values(blanks).includes(t);
+          return (
+            <TouchableOpacity
+              key={t}
+              activeOpacity={0.7}
+              onPress={() => fillBlank(t)}
+              style={[sh.token, used && sh.tokenUsed]}
+            >
+              <Text style={[sh.tokenText, used && sh.tokenTextUsed]}>{t}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      <View style={{ width: '100%', gap: 10 }}>
+        <TouchableOpacity
+          activeOpacity={filled === 3 ? 0.85 : 1}
+          style={{ width: '100%', opacity: filled === 3 ? 1 : 0.4 }}
+          onPress={filled === 3 ? onNext : undefined}
+        >
+          <LinearGradient
+            colors={['#43e97b', '#38f9d7']}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+            style={sh.primaryBtn}
+          >
+            <Text style={sh.primaryBtnText}>VERIFICAR CÓDIGO →</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={() => setBlanks({ a: '', b: '', c: '' })}
+          style={sh.secondaryBtn}
+        >
+          <Text style={sh.secondaryBtnText}>LIMPAR TUDO</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
+  );
+}
+
+// ─── Root ─────────────────────────────────────────────────────────────────────
+
+const SCREENS = ['questao', 'feedback', 'verdfalso', 'codigo'] as const;
+type ScreenKey = typeof SCREENS[number];
+
+export default function ExerciseNavigator() {
+  const router = useRouter();
+  const [idx, setIdx] = useState(0);
+
+  const screen: ScreenKey = SCREENS[idx];
+
+  const next = () => {
+    if (idx >= SCREENS.length - 1) {
+      router.push('/resultsummary');
+    } else {
+      setIdx(i => i + 1);
+    }
+  };
+
+  const back = () => {
+    if (idx === 0) router.back();
+    else setIdx(i => i - 1);
+  };
+
+  return (
+    <>
+      <Stack.Screen options={{ headerShown: false }} />
+      <LinearGradient colors={[C.bg, C.bg2, C.bg]} style={{ flex: 1 }}>
+        <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+        {screen === 'questao'   && <TelaQuestao onNext={next} onBack={back} />}
+        {screen === 'feedback'  && <TelaFeedback onNext={next} onBack={back} />}
+        {screen === 'verdfalso' && <TelaVerdadeiroFalso onNext={next} onBack={back} />}
+        {screen === 'codigo'    && <TelaCompletarCodigo onNext={next} onBack={back} />}
+      </LinearGradient>
+    </>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const sh = StyleSheet.create({
+  screen: {
+    paddingHorizontal: 20,
+    paddingTop: 56,
+    paddingBottom: 40,
+    gap: 20,
+    alignItems: 'center',
+  },
+
+  // Top bar
+  topBar: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  backArrow: { fontSize: 22, color: '#43e97b', lineHeight: 24 },
+  backLabel: { fontSize: 13, color: '#43e97b', fontWeight: '600' },
+  topBarCenter: { flex: 1 },
+  stepBadge: {
+    backgroundColor: C.accentDim,
+    borderWidth: 1,
+    borderColor: C.accentBorder,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  stepText: { fontSize: 11, fontWeight: '700', color: C.accent },
+
+  // Progress bar
+  progressBg: {
+    width: '100%',
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  progressFill: { height: '100%', borderRadius: 999 },
+
+  // Badge
+  badge: {
+    backgroundColor: C.accentDim,
+    borderWidth: 1,
+    borderColor: C.accentBorder,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  badgeText: { fontSize: 12, fontWeight: '600', color: C.accent, letterSpacing: 0.3 },
+
+  // Typography
+  eyebrow: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: C.accent,
+    letterSpacing: 2.5,
+    textAlign: 'center',
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: C.text,
+    textAlign: 'center',
+    lineHeight: 28,
+  },
+  titleHighlight: { color: C.accent },
+  subtitle: { fontSize: 13, color: C.muted, textAlign: 'center', lineHeight: 20 },
+
+  // Card
+  card: {
+    width: '100%',
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+    borderRadius: 16,
+    padding: 18,
+  },
+  cardDesc: { fontSize: 13, color: C.muted, lineHeight: 21 },
+
+  // Stats
+  statsRow: {
+    width: '100%',
+    flexDirection: 'row',
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  statsRowSmall: {
+    width: '100%',
+    flexDirection: 'row',
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  statCard: { flex: 1, alignItems: 'center', gap: 3 },
+  statIcon: { fontSize: 18 },
+  statValue: { fontSize: 15, fontWeight: '800', color: C.text },
+  statLabel: { fontSize: 10, color: C.muted, fontWeight: '500' },
+  statDivider: { width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.07)' },
+
+  // MC Options
+  optionsList: { width: '100%', gap: 10 },
+  option: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+  },
+  optionSelected: { backgroundColor: C.accentDim, borderColor: C.accentBorder },
+  optionBubble: {
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  optionBubbleSelected: { backgroundColor: C.accent, borderColor: C.accent },
+  optionBubbleText: { fontSize: 11, fontWeight: '700', color: C.muted },
+  optionBubbleTextSelected: { color: C.bg },
+  optionText: { fontSize: 13, color: C.muted, lineHeight: 20, flex: 1 },
+  optionTextSelected: { color: C.text },
+
+  // Feedback
+  feedbackCircle: {
+    width: 90,
+    height: 90,
+    borderRadius: 999,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  feedbackIcon: { fontSize: 40, fontWeight: '800' },
+
+  // Chips
+  chip: {
+    backgroundColor: '#0d2137',
+    borderWidth: 1,
+    borderColor: C.accentBorder,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  chipText: { fontSize: 11, fontWeight: '600', color: C.accent },
+
+  // T/F
+  tfButton: {
+    flex: 1,
+    height: 120,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: C.cardBorder,
+    backgroundColor: C.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  tfIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tfIconText: { fontSize: 20, fontWeight: '800', color: C.muted },
+  tfLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 1.5, color: C.muted },
+  hintIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: C.accentDim,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+
+  // Code
+  codeCard: {
+    width: '100%',
+    backgroundColor: '#0a1929',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 16,
+    padding: 16,
+    gap: 2,
+  },
+  codeFileName: { fontSize: 11, color: C.muted, marginBottom: 8, fontWeight: '600' },
+  codeLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    minHeight: 28,
+  },
+  kw: { fontSize: 12, color: '#c586c0', fontFamily: 'monospace' },
+  fn: { fontSize: 12, color: '#dcdcaa', fontFamily: 'monospace' },
+  code: { fontSize: 12, color: C.text, fontFamily: 'monospace' },
+  prop: { fontSize: 12, color: '#9cdcfe', fontFamily: 'monospace' },
+
+  // Blank slots
+  blankSlot: {
+    minWidth: 80,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(67,233,123,0.4)',
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    marginHorizontal: 2,
+  },
+  blankSlotFilled: {
+    backgroundColor: C.accentDim,
+    borderColor: C.accent,
+    borderStyle: 'solid',
+  },
+  blankText: { fontSize: 11, color: 'rgba(67,233,123,0.5)', fontFamily: 'monospace', fontWeight: '600' },
+  blankTextFilled: { color: C.accent },
+
+  // Tokens
+  token: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: C.accentBorder,
+    backgroundColor: C.accentDim,
+  },
+  tokenUsed: { opacity: 0.35 },
+  tokenText: { fontSize: 12, fontWeight: '600', color: C.accent, fontFamily: 'monospace' },
+  tokenTextUsed: { color: C.muted },
+
+  // Buttons
+  primaryBtn: {
+    width: '100%',
+    height: 52,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#43e97b',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  primaryBtnText: { fontSize: 13, fontWeight: '800', color: '#010d19', letterSpacing: 1 },
+  secondaryBtn: {
+    width: '100%',
+    height: 42,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: C.accentBorder,
+    backgroundColor: C.accentDim,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryBtnText: { fontSize: 12, fontWeight: '700', color: C.accent, letterSpacing: 0.5 },
+});
