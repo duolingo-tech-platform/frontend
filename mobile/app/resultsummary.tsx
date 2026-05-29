@@ -5,10 +5,11 @@ import {
   TouchableOpacity,
   StatusBar,
 } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 
 export default function LessonCompleteScreen() {
+  const router = useRouter();
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
@@ -95,7 +96,7 @@ export default function LessonCompleteScreen() {
 
         {/* ── ACTIONS ── */}
         <View style={styles.actions}>
-          <TouchableOpacity activeOpacity={0.85} style={{ width: '100%' }}>
+          <TouchableOpacity activeOpacity={0.85} style={{ width: '100%' }} onPress={() => router.push('/lessonview')}>
             <LinearGradient
               colors={['#43e97b', '#38f9d7']}
               start={{ x: 0, y: 0 }}
@@ -106,10 +107,6 @@ export default function LessonCompleteScreen() {
             </LinearGradient>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.shareButton} activeOpacity={0.8}>
-            <Text style={styles.shareIcon}>↗</Text>
-            <Text style={styles.shareText}>Compartilhar</Text>
-          </TouchableOpacity>
         </View>
 
       </LinearGradient>
