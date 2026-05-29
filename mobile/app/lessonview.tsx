@@ -63,6 +63,14 @@ export default function CourseMapScreen() {
       >
         <StatusBar barStyle="light-content" backgroundColor="#010d19" />
 
+        {/* ── BACK ── */}
+        <View style={styles.backRow}>
+          <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.backButton}>
+            <Text style={styles.backArrow}>‹</Text>
+            <Text style={styles.backLabel}>Cursos</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* ── HEADER ── */}
         <View style={styles.header}>
           <View style={styles.headerStat}>
@@ -110,7 +118,7 @@ export default function CourseMapScreen() {
                 </View>
 
                 {unit.status === 'active' ? (
-                  <TouchableOpacity activeOpacity={0.85}>
+                  <TouchableOpacity activeOpacity={0.85} onPress={() => router.push('/exercisescreens')}>
                     <LinearGradient
                       colors={['#43e97b', '#38f9d7']}
                       start={{ x: 0, y: 0 }}
@@ -132,7 +140,12 @@ export default function CourseMapScreen() {
                 <View style={styles.pathLine} />
 
                 {unit.nodes.map((node) => (
-                  <View key={node.id} style={styles.nodeRow}>
+                  <TouchableOpacity
+                    key={node.id}
+                    style={styles.nodeRow}
+                    activeOpacity={node.status === 'locked' ? 1 : 0.8}
+                    onPress={node.status !== 'locked' ? () => router.push('/exercisescreens') : undefined}
+                  >
 
                     {/* Left */}
                     <View style={styles.nodeSideSlot}>
@@ -155,7 +168,7 @@ export default function CourseMapScreen() {
                       )}
                     </View>
 
-                  </View>
+                  </TouchableOpacity>
                 ))}
               </View>
 
@@ -169,6 +182,7 @@ export default function CourseMapScreen() {
         <TouchableOpacity
           style={styles.fabWrap}
           activeOpacity={0.85}
+          onPress={() => router.push('/exercisescreens')}
         >
           <LinearGradient
             colors={['#7c3aed', '#a855f7']}
@@ -198,6 +212,7 @@ export default function CourseMapScreen() {
           <TouchableOpacity
             style={styles.navItem}
             activeOpacity={0.7}
+            onPress={() => router.push('/courses')}
           >
             <Text style={styles.navIconActive}>📚</Text>
             <Text style={styles.navLabelActive}>Cursos</Text>
@@ -207,6 +222,7 @@ export default function CourseMapScreen() {
           <TouchableOpacity
             style={styles.navItem}
             activeOpacity={0.7}
+            onPress={() => router.push('/ranking')}
           >
             <Text style={styles.navIcon}>🏅</Text>
             <Text style={styles.navLabel}>Ranking</Text>
@@ -327,13 +343,36 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
+  // Back
+  backRow: {
+    paddingHorizontal: 24,
+    paddingTop: 56,
+    paddingBottom: 4,
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+  },
+  backArrow: {
+    fontSize: 22,
+    color: '#43e97b',
+    lineHeight: 24,
+  },
+  backLabel: {
+    fontSize: 14,
+    color: '#43e97b',
+    fontWeight: '600',
+  },
+
   // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 24,
-    paddingTop: 56,
+    paddingTop: 8,
     paddingBottom: 16,
   },
 
