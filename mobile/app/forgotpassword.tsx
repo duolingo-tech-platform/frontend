@@ -9,13 +9,14 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState } from 'react';
 
 type Step = 'email' | 'code' | 'newPassword' | 'success';
 
 export default function ResetPasswordScreen() {
+  const router = useRouter();
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState(['', '', '', '']);
@@ -119,7 +120,7 @@ export default function ResetPasswordScreen() {
           </LinearGradient>
         </TouchableOpacity>
 
-        <TouchableOpacity activeOpacity={0.7} onPress={() => {}}>
+        <TouchableOpacity activeOpacity={0.7} onPress={() => router.push('/login')}>
           <Text style={styles.backLink}>← Voltar para o login</Text>
         </TouchableOpacity>
       </View>
@@ -336,7 +337,7 @@ export default function ResetPasswordScreen() {
       </View>
 
       <View style={styles.actions}>
-        <TouchableOpacity activeOpacity={0.85} style={{ width: '100%' }}>
+        <TouchableOpacity activeOpacity={0.85} style={{ width: '100%' }} onPress={() => router.push('/login')}>
           <LinearGradient
             colors={['#43e97b', '#38f9d7']}
             start={{ x: 0, y: 0 }}
