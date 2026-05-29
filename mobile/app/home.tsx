@@ -121,6 +121,7 @@ export default function HomeScreen() {
             <TouchableOpacity
               activeOpacity={0.85}
               style={{ marginTop: 18 }}
+              onPress={() => router.push('/lessonview')}
             >
               <LinearGradient
                 colors={['#43e97b', '#38f9d7']}
@@ -154,6 +155,7 @@ export default function HomeScreen() {
                   key={index}
                   style={styles.courseCard}
                   activeOpacity={0.8}
+                  onPress={() => router.push('/lessonview')}
                 >
                   <View style={styles.courseLeft}>
                     <View
@@ -251,6 +253,7 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={styles.navItem}
             activeOpacity={0.7}
+            onPress={() => router.push('/ranking')}
           >
             <Text style={styles.navIcon}>🏅</Text>
             <Text style={styles.navLabel}>Ranking</Text>
