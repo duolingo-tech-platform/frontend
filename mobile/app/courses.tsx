@@ -7,7 +7,7 @@ import {
   StatusBar,
   TextInput,
 } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState } from 'react';
 
@@ -139,9 +139,9 @@ function progressLabelColor(p: number, locked: boolean, accent: string): string 
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function FeaturedCourseCard({ course }: { course: Course }) {
+function FeaturedCourseCard({ course, onPress }: { course: Course; onPress?: () => void }) {
   return (
-    <TouchableOpacity activeOpacity={0.85} style={styles.featuredCard}>
+    <TouchableOpacity activeOpacity={0.85} style={styles.featuredCard} onPress={onPress}>
       <LinearGradient
         colors={[course.accentColor + '18', course.accentColor + '06']}
         style={styles.featuredGradient}
@@ -183,7 +183,7 @@ function FeaturedCourseCard({ course }: { course: Course }) {
         )}
 
         {/* CTA */}
-        <TouchableOpacity activeOpacity={0.85} style={{ marginTop: 16 }}>
+        <TouchableOpacity activeOpacity={0.85} style={{ marginTop: 16 }} onPress={onPress}>
           <LinearGradient
             colors={[course.accentColor, course.accentColor + 'cc']}
             start={{ x: 0, y: 0 }}
@@ -200,13 +200,14 @@ function FeaturedCourseCard({ course }: { course: Course }) {
   );
 }
 
-function CourseCard({ course }: { course: Course }) {
+function CourseCard({ course, onPress }: { course: Course; onPress?: () => void }) {
   const isLocked = course.locked;
 
   return (
     <TouchableOpacity
       activeOpacity={isLocked ? 1 : 0.8}
       style={[styles.courseCard, isLocked && styles.courseCardLocked]}
+      onPress={isLocked ? undefined : onPress}
     >
       {/* Left: icon */}
       <View style={[
@@ -276,6 +277,7 @@ function CourseCard({ course }: { course: Course }) {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function CoursesScreen() {
+  const router = useRouter();
   const [activeCategory, setActiveCategory] = useState<CourseCategory>('Todos');
   const [search, setSearch] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
@@ -317,10 +319,7 @@ export default function CoursesScreen() {
               <Text style={styles.eyebrow}>BIBLIOTECA</Text>
               <Text style={styles.headerTitle}>Seus Cursos</Text>
             </View>
-            <TouchableOpacity style={styles.filterButton} activeOpacity={0.7}>
-              <Text style={styles.filterIcon}>⚙️</Text>
-            </TouchableOpacity>
-          </View>
+            </View>
 
           {/* ── STATS ── */}
           <View style={styles.statsRow}>
@@ -351,6 +350,8 @@ export default function CoursesScreen() {
               onChangeText={setSearch}
               onFocus={() => setSearchFocused(true)}
               onBlur={() => setSearchFocused(false)}
+              underlineColorAndroid="transparent"
+              selectionColor="#43e97b"
             />
             {search.length > 0 && (
               <TouchableOpacity onPress={() => setSearch('')} activeOpacity={0.7}>
@@ -395,7 +396,7 @@ export default function CoursesScreen() {
               <Text style={styles.sectionTitle}>
                 {featured.progress > 0 ? '▶ Continuar de onde parou' : '⭐ Recomendado'}
               </Text>
-              <FeaturedCourseCard course={featured} />
+              <FeaturedCourseCard course={featured} onPress={() => router.push('/lessonview')} />
             </View>
           )}
 
@@ -412,7 +413,7 @@ export default function CoursesScreen() {
 
             <View style={styles.coursesList}>
               {(search.length > 0 ? filtered : rest).map((course) => (
-                <CourseCard key={course.id} course={course} />
+                <CourseCard key={course.id} course={course} onPress={() => router.push('/lessonview')} />
               ))}
             </View>
 
@@ -430,7 +431,7 @@ export default function CoursesScreen() {
 
         {/* ── BOTTOM NAV ── */}
         <View style={styles.bottomNav}>
-          <TouchableOpacity style={styles.navItem} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.navItem} activeOpacity={0.7} onPress={() => router.push('/home')}>
             <Text style={styles.navIcon}>🏠</Text>
             <Text style={styles.navLabel}>Home</Text>
           </TouchableOpacity>
@@ -438,11 +439,11 @@ export default function CoursesScreen() {
             <Text style={styles.navIconActive}>📚</Text>
             <Text style={styles.navLabelActive}>Cursos</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navItem} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.navItem} activeOpacity={0.7} onPress={() => router.push('/ranking')}>
             <Text style={styles.navIcon}>🏅</Text>
             <Text style={styles.navLabel}>Ranking</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navItem} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.navItem} activeOpacity={0.7} onPress={() => router.push('/profilescreens')}>
             <Text style={styles.navIcon}>👤</Text>
             <Text style={styles.navLabel}>Perfil</Text>
           </TouchableOpacity>
