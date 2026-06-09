@@ -1,35 +1,71 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
+import { Stack } from 'expo-router';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { Colors } from '@/constants/colors';
+import { useAuth } from '@/contexts/AuthContext';
+import { getRanking, RankingEntry as ApiEntry } from '@/services/rankingService';
 
-interface RankingEntry {
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const RANK_COLORS = [
+  '#f9c74f',        // 1st gold
+  '#e0e0e0',        // 2nd silver
+  '#fb923c',        // 3rd bronze
+  Colors.accent,
+  '#a78bfa',
+  Colors.accentCyan,
+  '#f472b6',
+  Colors.accent,
+  '#a78bfa',
+  Colors.accentCyan,
+];
+
+function accentFor(position: number) {
+  return RANK_COLORS[Math.min(position - 1, RANK_COLORS.length - 1)];
+}
+
+function initials(name: string) {
+  return name
+    .split(' ')
+    .slice(0, 2)
+    .map((n) => n[0] ?? '')
+    .join('')
+    .toUpperCase();
+}
+
+// ─── Mapped type ─────────────────────────────────────────────────────────────
+
+interface DisplayEntry {
   position: number;
+  userId: string;
   name: string;
   initials: string;
   xp: number;
   streak: number;
   accentColor: string;
-  isCurrentUser?: boolean;
+  isCurrentUser: boolean;
 }
 
-const TOP_USERS: RankingEntry[] = [
-  { position: 1,  name: 'Ana Silva',    initials: 'AS', xp: 9800, streak: 42, accentColor: '#f9c74f' },
-  { position: 2,  name: 'Carlos Lima',  initials: 'CL', xp: 8450, streak: 31, accentColor: '#e0e0e0' },
-  { position: 3,  name: 'Beatriz Melo', initials: 'BM', xp: 7200, streak: 28, accentColor: '#fb923c' },
-  { position: 4,  name: 'João Dev',     initials: 'JD', xp: 5400, streak: 14, accentColor: Colors.accent, isCurrentUser: true },
-  { position: 5,  name: 'Diego Souza',  initials: 'DS', xp: 4980, streak: 10, accentColor: '#a78bfa' },
-  { position: 6,  name: 'Larissa K.',   initials: 'LK', xp: 4310, streak: 7,  accentColor: Colors.accentCyan },
-  { position: 7,  name: 'Rafael N.',    initials: 'RN', xp: 3890, streak: 5,  accentColor: Colors.accentCyan },
-  { position: 8,  name: 'Mariana T.',   initials: 'MT', xp: 3200, streak: 3,  accentColor: '#a78bfa' },
-  { position: 9,  name: 'Pedro A.',     initials: 'PA', xp: 2750, streak: 2,  accentColor: Colors.accentCyan },
-  { position: 10, name: 'Julia F.',     initials: 'JF', xp: 2100, streak: 1,  accentColor: Colors.accent },
-];
+function toDisplay(entry: ApiEntry, currentUserId: string | undefined): DisplayEntry {
+  return {
+    position: entry.position,
+    userId: entry.userId,
+    name: entry.name,
+    initials: initials(entry.name),
+    xp: entry.xp,
+    streak: entry.streak,
+    accentColor: accentFor(entry.position),
+    isCurrentUser: !!currentUserId && entry.userId === currentUserId,
+  };
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
 const MEDAL: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' };
 
-function PodiumCard({ entry }: { entry: RankingEntry }) {
+function PodiumCard({ entry }: { entry: DisplayEntry }) {
   const height = entry.position === 1 ? 110 : entry.position === 2 ? 88 : 70;
   return (
     <View style={[styles.podiumItem, entry.position === 1 && styles.podiumCenter]}>
@@ -46,7 +82,7 @@ function PodiumCard({ entry }: { entry: RankingEntry }) {
   );
 }
 
-function RankRow({ entry }: { entry: RankingEntry }) {
+function RankRow({ entry }: { entry: DisplayEntry }) {
   return (
     <View style={[styles.rankRow, entry.isCurrentUser && styles.rankRowHighlight]}>
       <Text style={styles.rankPos}>{entry.position}</Text>
@@ -71,56 +107,100 @@ function RankRow({ entry }: { entry: RankingEntry }) {
   );
 }
 
+// ─── Main Screen ─────────────────────────────────────────────────────────────
+
 export default function RankingScreen() {
-  const podium = TOP_USERS.slice(0, 3);
-  const rest   = TOP_USERS.slice(3);
+  const { user } = useAuth();
+  const [entries, setEntries] = useState<DisplayEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getRanking(10)
+      .then((data) => setEntries(data.map((e) => toDisplay(e, user?.id))))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [user?.id]);
+
+  const currentUserEntry = entries.find((e) => e.isCurrentUser);
+  const podium = entries.slice(0, 3);
+  const rest   = entries.slice(3);
+
+  const weekNumber = Math.ceil((new Date().getMonth() * 4) + Math.ceil(new Date().getDate() / 7));
 
   return (
     <ScreenContainer>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      {loading ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color={Colors.accent} />
+        </View>
+      ) : (
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
-        {/* ── HEADER ── */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.eyebrow}>SEMANA ATUAL</Text>
-            <Text style={styles.headerTitle}>Ranking</Text>
+          {/* ── HEADER ── */}
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.eyebrow}>SEMANA ATUAL</Text>
+              <Text style={styles.headerTitle}>Ranking</Text>
+            </View>
+            <View style={styles.weekBadge}>
+              <Text style={styles.weekBadgeText}>🗓️ Semana {weekNumber}</Text>
+            </View>
           </View>
-          <View style={styles.weekBadge}>
-            <Text style={styles.weekBadgeText}>🗓️ Semana 22</Text>
-          </View>
-        </View>
 
-        {/* ── SUA POSIÇÃO ── */}
-        <View style={styles.yourPosBanner}>
-          <Text style={styles.yourPosLabel}>Sua posição</Text>
-          <Text style={styles.yourPosValue}>#4 de 248</Text>
-          <Text style={styles.yourPosHint}>Top 8% 🚀</Text>
-        </View>
+          {/* ── SUA POSIÇÃO ── */}
+          {currentUserEntry ? (
+            <View style={styles.yourPosBanner}>
+              <Text style={styles.yourPosLabel}>Sua posição</Text>
+              <Text style={styles.yourPosValue}>#{currentUserEntry.position}</Text>
+              <Text style={styles.yourPosHint}>
+                {currentUserEntry.xp >= 1000 ? `${(currentUserEntry.xp / 1000).toFixed(1)}k XP` : `${currentUserEntry.xp} XP`} 🚀
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.yourPosBanner}>
+              <Text style={styles.yourPosLabel}>Complete lições para entrar no ranking!</Text>
+              <Text style={styles.yourPosHint}>🚀</Text>
+            </View>
+          )}
 
-        {/* ── PÓDIO ── */}
-        <View style={styles.podiumRow}>
-          <PodiumCard entry={podium[1]} />
-          <PodiumCard entry={podium[0]} />
-          <PodiumCard entry={podium[2]} />
-        </View>
+          {/* ── PÓDIO ── */}
+          {podium.length >= 3 && (
+            <View style={styles.podiumRow}>
+              <PodiumCard entry={podium[1]} />
+              <PodiumCard entry={podium[0]} />
+              <PodiumCard entry={podium[2]} />
+            </View>
+          )}
 
-        {/* ── LISTA ── */}
-        <View style={{ gap: 12 }}>
-          <Text style={styles.sectionTitle}>CLASSIFICAÇÃO COMPLETA</Text>
-          <View style={styles.listCard}>
-            {rest.map((entry, i) => (
-              <View key={entry.position}>
-                {i > 0 && <View style={styles.separator} />}
-                <RankRow entry={entry} />
+          {/* ── LISTA ── */}
+          {rest.length > 0 && (
+            <View style={{ gap: 12 }}>
+              <Text style={styles.sectionTitle}>CLASSIFICAÇÃO COMPLETA</Text>
+              <View style={styles.listCard}>
+                {rest.map((entry, i) => (
+                  <View key={entry.userId}>
+                    {i > 0 && <View style={styles.separator} />}
+                    <RankRow entry={entry} />
+                  </View>
+                ))}
               </View>
-            ))}
-          </View>
-        </View>
+            </View>
+          )}
 
-        <View style={{ height: 100 }} />
-      </ScrollView>
+          {entries.length === 0 && (
+            <View style={{ alignItems: 'center', paddingVertical: 60, gap: 12 }}>
+              <Text style={{ fontSize: 40 }}>🏁</Text>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: Colors.muted, textAlign: 'center' }}>
+                Nenhum dado de ranking ainda.{'\n'}Complete lições para aparecer aqui!
+              </Text>
+            </View>
+          )}
+
+          <View style={{ height: 100 }} />
+        </ScrollView>
+      )}
 
       <BottomNav activeTab="ranking" />
     </ScreenContainer>
@@ -146,7 +226,7 @@ const styles = StyleSheet.create({
     borderRadius: 16, padding: 16,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
   },
-  yourPosLabel: { fontSize: 12, color: Colors.muted, fontWeight: '600' },
+  yourPosLabel: { fontSize: 12, color: Colors.muted, fontWeight: '600', flex: 1 },
   yourPosValue: { fontSize: 22, fontWeight: '800', color: Colors.white },
   yourPosHint: { fontSize: 13, color: Colors.accent, fontWeight: '700' },
 

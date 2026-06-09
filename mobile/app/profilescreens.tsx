@@ -8,10 +8,13 @@ import {
   ScrollView,
   Switch,
   StatusBar,
+  ActivityIndicator,
   Dimensions,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '@/contexts/AuthContext';
+import { updateProfile } from '@/services/authService';
 
 const { width } = Dimensions.get('window');
 
@@ -107,6 +110,23 @@ function StatItem({ value, label }: StatItemProps) {
 // ─── TELA 1: Perfil ──────────────────────────────────────────────────────────
 
 export function TelaPerfil({ onNavigate, onSignOut }: { onNavigate: (screen: string) => void; onSignOut: () => void }) {
+  const { user } = useAuth();
+
+  const displayName = user?.name ?? '';
+  const displayEmail = user?.email ?? '';
+  const displayInitials = displayName
+    .split(' ')
+    .slice(0, 2)
+    .map((n: string) => n[0] ?? '')
+    .join('')
+    .toUpperCase() || '?';
+  const level = user?.level ?? 0;
+  const xp = user?.xp ?? 0;
+  const streak = user?.streak ?? 0;
+  const xpInLevel = xp % 100;
+  const xpToNext = 100 - xpInLevel;
+  const xpProgress = xpInLevel / 100;
+
   return (
     <LinearGradient colors={[C.bg, C.bg2, C.bg]} style={s.container}>
       <StatusBar barStyle="light-content" backgroundColor={C.bg} />
@@ -131,43 +151,43 @@ export function TelaPerfil({ onNavigate, onSignOut }: { onNavigate: (screen: str
         <View style={s.avatarSection}>
           <View style={s.glowRing}>
             <View style={s.avatar}>
-              <Text style={s.avatarText}>JP</Text>
+              <Text style={s.avatarText}>{displayInitials}</Text>
             </View>
           </View>
           <View style={[s.levelBadge]}>
-            <Text style={s.levelBadgeText}>⚡ Nível 12</Text>
+            <Text style={s.levelBadgeText}>⚡ Nível {level}</Text>
           </View>
-          <Text style={s.profileName}>João Pedro</Text>
-          <Text style={s.profileEmail}>joao@email.com</Text>
+          <Text style={s.profileName}>{displayName}</Text>
+          <Text style={s.profileEmail}>{displayEmail}</Text>
           <View style={s.rankChip}>
-            <Text style={s.rankChipText}>🏆 Top 8% da semana</Text>
+            <Text style={s.rankChipText}>🏆 {xp} XP acumulados</Text>
           </View>
         </View>
 
         {/* XP Bar */}
         <SectionCard>
           <View style={s.xpRow}>
-            <Text style={s.xpLabel}>Progresso — Nível 12</Text>
-            <Text style={s.xpValue}>2.340 / 3.000 XP</Text>
+            <Text style={s.xpLabel}>Progresso — Nível {level}</Text>
+            <Text style={s.xpValue}>{xpInLevel} / 100 XP</Text>
           </View>
           <View style={s.xpBarBg}>
             <LinearGradient
               colors={[C.accent, '#38f9d7']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
-              style={[s.xpBarFill, { width: '78%' }]}
+              style={[s.xpBarFill, { width: `${Math.round(xpProgress * 100)}%` as any }]}
             />
           </View>
-          <Text style={s.xpHint}>660 XP para o nível 13</Text>
+          <Text style={s.xpHint}>{xpToNext} XP para o nível {level + 1}</Text>
         </SectionCard>
 
         {/* Stats */}
         <View style={s.statsRow}>
-          <StatItem value="12k" label="XP Total" />
+          <StatItem value={xp >= 1000 ? `${(xp / 1000).toFixed(1)}k` : String(xp)} label="XP Total" />
           <View style={sh.divider} />
-          <StatItem value="38" label="Módulos" />
+          <StatItem value={String(level)} label="Nível" />
           <View style={sh.divider} />
-          <StatItem value="🔥 14" label="Sequência" />
+          <StatItem value={`🔥 ${streak}`} label="Sequência" />
         </View>
 
         {/* Conquistas */}
@@ -204,14 +224,35 @@ export function TelaPerfil({ onNavigate, onSignOut }: { onNavigate: (screen: str
 // ─── TELA 2: Editar Perfil ────────────────────────────────────────────────────
 
 export function TelaEditarPerfil({ onNavigate }: { onNavigate: (screen: string) => void }) {
-  const [nome, setNome] = useState('João Pedro');
-  const [email, setEmail] = useState('joao@email.com');
-  const [bio, setBio] = useState('Desenvolvedor apaixonado por React Native e AWS.');
+  const { user, refreshUser } = useAuth();
+  const [nome, setNome] = useState(user?.name ?? '');
+  const [email, setEmail] = useState(user?.email ?? '');
+  const [bio, setBio] = useState('');
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const displayInitials = nome
+    .split(' ')
+    .slice(0, 2)
+    .map((n: string) => n[0] ?? '')
+    .join('')
+    .toUpperCase() || '?';
+
+  const handleSave = async () => {
+    if (!nome.trim()) return;
+    setSaving(true);
+    setError('');
+    try {
+      await updateProfile({ name: nome.trim(), email: email.trim() });
+      await refreshUser();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e: any) {
+      setError(e.message ?? 'Erro ao salvar.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -232,7 +273,7 @@ export function TelaEditarPerfil({ onNavigate }: { onNavigate: (screen: string) 
         <View style={s.avatarSection}>
           <View style={s.glowRing}>
             <View style={s.avatar}>
-              <Text style={s.avatarText}>JP</Text>
+              <Text style={s.avatarText}>{displayInitials}</Text>
             </View>
           </View>
           <TouchableOpacity activeOpacity={0.7} style={sh.badge}>
@@ -289,17 +330,29 @@ export function TelaEditarPerfil({ onNavigate }: { onNavigate: (screen: string) 
           <RowItem icon="📱" label="Autenticação em 2 fatores" value="Ativo" accent onPress={() => {}} />
         </SectionCard>
 
+        {error ? (
+          <Text style={{ fontSize: 12, color: C.danger, textAlign: 'center' }}>{error}</Text>
+        ) : null}
+
         <View style={s.actions}>
-          <TouchableOpacity activeOpacity={0.85} style={{ width: '100%' }} onPress={handleSave}>
+          <TouchableOpacity
+            activeOpacity={saving ? 1 : 0.85}
+            style={{ width: '100%', opacity: saving ? 0.7 : 1 }}
+            onPress={saving ? undefined : handleSave}
+          >
             <LinearGradient
               colors={saved ? ['#38f9d7', '#43e97b'] : ['#43e97b', '#38f9d7']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={s.primaryButton}
             >
-              <Text style={s.primaryButtonText}>
-                {saved ? '✓ SALVO COM SUCESSO' : 'SALVAR ALTERAÇÕES'}
-              </Text>
+              {saving ? (
+                <ActivityIndicator color={C.bg} />
+              ) : (
+                <Text style={s.primaryButtonText}>
+                  {saved ? '✓ SALVO COM SUCESSO' : 'SALVAR ALTERAÇÕES'}
+                </Text>
+              )}
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -1099,16 +1152,22 @@ type Screen =
 
 export default function ProfileNavigator() {
   const router = useRouter();
+  const { logout } = useAuth();
   const [screen, setScreen] = useState<Screen>('perfil');
 
   const navigate = (s: string) => setScreen(s as Screen);
 
+  async function handleSignOut() {
+    await logout();
+    router.replace('/login');
+  }
+
   return (
     <View style={{ flex: 1 }}>
-      {screen === 'perfil'         && <TelaPerfil onNavigate={navigate} onSignOut={() => router.replace('/login')} />}
+      {screen === 'perfil'         && <TelaPerfil onNavigate={navigate} onSignOut={handleSignOut} />}
       {screen === 'editar'         && <TelaEditarPerfil onNavigate={navigate} />}
       {screen === 'historico'      && <TelaHistorico onNavigate={navigate} />}
-      {screen === 'configuracoes'  && <TelaConfiguracoes onNavigate={navigate} onSignOut={() => router.replace('/login')} />}
+      {screen === 'configuracoes'  && <TelaConfiguracoes onNavigate={navigate} onSignOut={handleSignOut} />}
       {screen === 'alterar-senha'  && <TelaAlterarSenha onNavigate={navigate} />}
       {screen === 'deletar-conta'  && <TelaDeletarConta onNavigate={navigate} />}
       {screen === 'central-ajuda'  && <TelaCentralAjuda onNavigate={navigate} />}

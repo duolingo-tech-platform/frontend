@@ -5,59 +5,61 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { StatsRow } from '@/components/ui/StatsRow';
 import { Colors } from '@/constants/colors';
+import { getCourses, Course } from '@/services/coursesService';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type CourseCategory = 'Todos' | 'Mobile' | 'Cloud' | 'Em Breve';
 
-interface Course {
-  id: number;
+interface DisplayCourse {
+  id: string;
   icon: string;
   title: string;
   subtitle: string;
   tag: string;
   tagColor: string;
-  lessons: number;
-  duration: string;
   progress: number;
   locked: boolean;
-  category: 'Mobile' | 'Cloud' | 'Em Breve';
+  category: CourseCategory;
   accentColor: string;
 }
 
-// ─── Data ────────────────────────────────────────────────────────────────────
+// ─── Display metadata (ícones e cores são UI-only, não vêm do banco) ──────────
 
-const ALL_COURSES: Course[] = [
-  { id: 1, icon: '📱', title: 'Expo Deep Dive',           subtitle: 'Fundamentos, navegação, APIs e build',        tag: 'Popular',  tagColor: Colors.accent,    lessons: 32, duration: '6h', progress: 50, locked: false, category: 'Mobile',   accentColor: Colors.accent },
-  { id: 2, icon: '⚛️', title: 'React Native Avançado',    subtitle: 'Animações, performance e arquitetura',         tag: 'Novo',     tagColor: '#a78bfa',        lessons: 28, duration: '5h', progress: 10, locked: false, category: 'Mobile',   accentColor: '#a78bfa' },
-  { id: 3, icon: '☁️', title: 'AWS para App Devs',        subtitle: 'Lambda, DynamoDB, S3 e API Gateway',           tag: 'Destaque', tagColor: Colors.accentCyan, lessons: 40, duration: '8h', progress: 25, locked: false, category: 'Cloud',    accentColor: Colors.accentCyan },
-  { id: 4, icon: '🔐', title: 'Autenticação com Cognito', subtitle: 'JWT, OAuth 2.0 e boas práticas',               tag: 'Cloud',    tagColor: '#fb923c',        lessons: 18, duration: '3h', progress: 0,  locked: false, category: 'Cloud',    accentColor: '#fb923c' },
-  { id: 5, icon: '🗄️', title: 'DynamoDB na Prática',     subtitle: 'Modelagem NoSQL e queries eficientes',          tag: 'Cloud',    tagColor: Colors.accentCyan, lessons: 22, duration: '4h', progress: 0,  locked: true,  category: 'Cloud',    accentColor: Colors.accentCyan },
-  { id: 6, icon: '🤖', title: 'IA no Mobile',             subtitle: 'Integração com modelos de linguagem',           tag: 'Em Breve', tagColor: '#64748b',        lessons: 0,  duration: '—',  progress: 0,  locked: true,  category: 'Em Breve', accentColor: '#64748b' },
-];
+const COURSE_META: Record<string, Omit<DisplayCourse, 'id' | 'title' | 'subtitle' | 'progress' | 'locked'>> = {
+  'Expo Deep Dive':          { icon: '📱', tag: 'Popular',  tagColor: Colors.accent,      category: 'Mobile', accentColor: Colors.accent },
+  'React Native Avançado':   { icon: '⚛️', tag: 'Novo',     tagColor: '#a78bfa',          category: 'Mobile', accentColor: '#a78bfa' },
+  'AWS para App Devs':       { icon: '☁️', tag: 'Destaque', tagColor: Colors.accentCyan,  category: 'Cloud',  accentColor: Colors.accentCyan },
+};
 
-const CATEGORIES: CourseCategory[] = ['Todos', 'Mobile', 'Cloud', 'Em Breve'];
+const DEFAULT_META = { icon: '📚', tag: 'Curso', tagColor: Colors.muted, category: 'Todos' as CourseCategory, accentColor: Colors.accent };
+
+function toDisplayCourse(c: Course): DisplayCourse {
+  const meta = COURSE_META[c.title] ?? DEFAULT_META;
+  return { id: c.id, title: c.title, subtitle: c.description, progress: 0, locked: false, ...meta };
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function progressLabel(p: number, locked: boolean) {
-  if (locked) return 'Bloqueado';
+const CATEGORIES: CourseCategory[] = ['Todos', 'Mobile', 'Cloud', 'Em Breve'];
+
+function progressLabel(p: number) {
   if (p === 0) return 'Iniciar';
   if (p === 100) return 'Concluído';
   return `${p}% concluído`;
 }
 
-function progressLabelColor(p: number, locked: boolean, accent: string) {
-  if (locked) return Colors.mutedDark;
+function progressLabelColor(p: number, accent: string) {
   if (p === 0) return Colors.muted;
   if (p === 100) return Colors.accent;
   return accent;
@@ -65,7 +67,7 @@ function progressLabelColor(p: number, locked: boolean, accent: string) {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function FeaturedCourseCard({ course, onPress }: { course: Course; onPress?: () => void }) {
+function FeaturedCourseCard({ course, onPress }: { course: DisplayCourse; onPress?: () => void }) {
   return (
     <TouchableOpacity activeOpacity={0.85} style={styles.featuredCard} onPress={onPress}>
       <LinearGradient
@@ -84,20 +86,9 @@ function FeaturedCourseCard({ course, onPress }: { course: Course; onPress?: () 
         <Text style={styles.featuredTitle}>{course.title}</Text>
         <Text style={styles.featuredSubtitle}>{course.subtitle}</Text>
 
-        <View style={styles.metaRow}>
-          <Text style={styles.metaItem}>📚 {course.lessons} aulas</Text>
-          <Text style={styles.metaDot}>·</Text>
-          <Text style={styles.metaItem}>⏱️ {course.duration}</Text>
-        </View>
-
         {course.progress > 0 && (
           <View style={styles.featuredProgressRow}>
-            <ProgressBar
-              progress={course.progress}
-              height={6}
-              color={course.accentColor}
-              style={{ flex: 1 }}
-            />
+            <ProgressBar progress={course.progress} height={6} color={course.accentColor} style={{ flex: 1 }} />
             <Text style={[styles.progressPct, { color: course.accentColor }]}>{course.progress}%</Text>
           </View>
         )}
@@ -119,53 +110,35 @@ function FeaturedCourseCard({ course, onPress }: { course: Course; onPress?: () 
   );
 }
 
-function CourseCard({ course, onPress }: { course: Course; onPress?: () => void }) {
-  const isLocked = course.locked;
-
+function CourseCard({ course, onPress }: { course: DisplayCourse; onPress?: () => void }) {
   return (
-    <TouchableOpacity
-      activeOpacity={isLocked ? 1 : 0.8}
-      style={[styles.courseCard, isLocked && styles.courseCardLocked]}
-      onPress={isLocked ? undefined : onPress}
-    >
-      <View style={[styles.courseIconWrap, { borderColor: isLocked ? 'rgba(255,255,255,0.06)' : course.accentColor + '40' }]}>
-        <Text style={[styles.courseIcon, isLocked && { opacity: 0.3 }]}>
-          {isLocked ? '🔒' : course.icon}
-        </Text>
+    <TouchableOpacity activeOpacity={0.8} style={styles.courseCard} onPress={onPress}>
+      <View style={[styles.courseIconWrap, { borderColor: course.accentColor + '40' }]}>
+        <Text style={styles.courseIcon}>{course.icon}</Text>
       </View>
 
       <View style={styles.courseInfo}>
         <View style={styles.courseTitleRow}>
-          <Text style={[styles.courseTitle, isLocked && { color: Colors.mutedDark }]} numberOfLines={1}>
-            {course.title}
-          </Text>
-          <View style={[styles.tagBadgeSmall, {
-            backgroundColor: isLocked ? 'rgba(255,255,255,0.04)' : course.accentColor + '18',
-            borderColor: isLocked ? Colors.cardBorder : course.accentColor + '40',
-          }]}>
-            <Text style={[styles.tagBadgeSmallText, { color: isLocked ? Colors.mutedDark : course.accentColor }]}>
-              {course.tag}
-            </Text>
+          <Text style={styles.courseTitle} numberOfLines={1}>{course.title}</Text>
+          <View style={[styles.tagBadgeSmall, { backgroundColor: course.accentColor + '18', borderColor: course.accentColor + '40' }]}>
+            <Text style={[styles.tagBadgeSmallText, { color: course.accentColor }]}>{course.tag}</Text>
           </View>
         </View>
 
         <Text style={styles.courseSubtitle} numberOfLines={1}>{course.subtitle}</Text>
 
-        {course.progress > 0 && !isLocked && (
+        {course.progress > 0 && (
           <ProgressBar progress={course.progress} height={4} color={course.accentColor} style={{ marginTop: 2 }} />
         )}
 
         <View style={styles.courseMeta}>
-          {!isLocked && (
-            <Text style={styles.courseMetaText}>{course.lessons} aulas · {course.duration}</Text>
-          )}
-          <Text style={[styles.courseStatusLabel, { color: progressLabelColor(course.progress, isLocked, course.accentColor) }]}>
-            {progressLabel(course.progress, isLocked)}
+          <Text style={[styles.courseStatusLabel, { color: progressLabelColor(course.progress, course.accentColor) }]}>
+            {progressLabel(course.progress)}
           </Text>
         </View>
       </View>
 
-      {!isLocked && <Text style={styles.courseChevron}>›</Text>}
+      <Text style={styles.courseChevron}>›</Text>
     </TouchableOpacity>
   );
 }
@@ -177,8 +150,17 @@ export default function CoursesScreen() {
   const [activeCategory, setActiveCategory] = useState<CourseCategory>('Todos');
   const [search, setSearch] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
+  const [courses, setCourses] = useState<DisplayCourse[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = ALL_COURSES.filter((c) => {
+  useEffect(() => {
+    getCourses()
+      .then((data) => setCourses(data.map(toDisplayCourse)))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filtered = courses.filter((c) => {
     const matchCat = activeCategory === 'Todos' || c.category === activeCategory;
     const matchSearch =
       c.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -187,23 +169,24 @@ export default function CoursesScreen() {
   });
 
   const featured =
-    filtered.find((c) => c.progress > 0 && c.progress < 100 && !c.locked) ??
-    filtered.find((c) => !c.locked);
+    filtered.find((c) => c.progress > 0 && c.progress < 100) ??
+    filtered[0];
 
   const rest = filtered.filter((c) => c.id !== featured?.id);
 
-  const total     = ALL_COURSES.filter((c) => !c.locked).length;
-  const completed = ALL_COURSES.filter((c) => c.progress === 100).length;
-  const inProgress = ALL_COURSES.filter((c) => c.progress > 0 && c.progress < 100 && !c.locked).length;
+  const inProgress = courses.filter((c) => c.progress > 0 && c.progress < 100).length;
+  const completed  = courses.filter((c) => c.progress === 100).length;
+
+  function goToLesson(courseId: string) {
+    router.push({ pathname: '/lessonview', params: { courseId } });
+  }
 
   return (
     <ScreenContainer>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+
         {/* ── HEADER ── */}
         <View>
           <Text style={styles.eyebrow}>BIBLIOTECA</Text>
@@ -212,9 +195,9 @@ export default function CoursesScreen() {
 
         {/* ── STATS ── */}
         <StatsRow items={[
-          { value: String(total),      label: 'Disponíveis' },
-          { value: String(inProgress), label: 'Em progresso', valueColor: Colors.accent },
-          { value: String(completed),  label: 'Concluídos',   valueColor: '#a78bfa' },
+          { value: String(courses.length), label: 'Disponíveis' },
+          { value: String(inProgress),     label: 'Em progresso', valueColor: Colors.accent },
+          { value: String(completed),      label: 'Concluídos',   valueColor: '#a78bfa' },
         ]} />
 
         {/* ── BUSCA ── */}
@@ -268,41 +251,46 @@ export default function CoursesScreen() {
           ))}
         </ScrollView>
 
+        {/* ── LOADING ── */}
+        {loading && <ActivityIndicator color={Colors.accent} style={{ marginTop: 20 }} />}
+
         {/* ── DESTAQUE ── */}
-        {featured && search.length === 0 && (
+        {!loading && featured && search.length === 0 && (
           <View style={{ gap: 14 }}>
             <Text style={styles.sectionTitle}>
               {featured.progress > 0 ? '▶ Continuar de onde parou' : '⭐ Recomendado'}
             </Text>
-            <FeaturedCourseCard course={featured} onPress={() => router.push('/lessonview')} />
+            <FeaturedCourseCard course={featured} onPress={() => goToLesson(featured.id)} />
           </View>
         )}
 
         {/* ── LISTA ── */}
-        <View style={{ gap: 14 }}>
-          {search.length > 0 && (
-            <Text style={styles.sectionTitle}>
-              {filtered.length} resultado{filtered.length !== 1 ? 's' : ''} para "{search}"
-            </Text>
-          )}
-          {search.length === 0 && rest.length > 0 && (
-            <Text style={styles.sectionTitle}>Todos os cursos</Text>
-          )}
+        {!loading && (
+          <View style={{ gap: 14 }}>
+            {search.length > 0 && (
+              <Text style={styles.sectionTitle}>
+                {filtered.length} resultado{filtered.length !== 1 ? 's' : ''} para "{search}"
+              </Text>
+            )}
+            {search.length === 0 && rest.length > 0 && (
+              <Text style={styles.sectionTitle}>Todos os cursos</Text>
+            )}
 
-          <View style={{ gap: 12 }}>
-            {(search.length > 0 ? filtered : rest).map((course) => (
-              <CourseCard key={course.id} course={course} onPress={() => router.push('/lessonview')} />
-            ))}
-          </View>
-
-          {filtered.length === 0 && (
-            <View style={styles.emptyState}>
-              <Text style={{ fontSize: 40 }}>🔭</Text>
-              <Text style={styles.emptyText}>Nenhum curso encontrado</Text>
-              <Text style={styles.emptySubtext}>Tente outro termo ou categoria</Text>
+            <View style={{ gap: 12 }}>
+              {(search.length > 0 ? filtered : rest).map((course) => (
+                <CourseCard key={course.id} course={course} onPress={() => goToLesson(course.id)} />
+              ))}
             </View>
-          )}
-        </View>
+
+            {filtered.length === 0 && !loading && (
+              <View style={styles.emptyState}>
+                <Text style={{ fontSize: 40 }}>🔭</Text>
+                <Text style={styles.emptyText}>Nenhum curso encontrado</Text>
+                <Text style={styles.emptySubtext}>Tente outro termo ou categoria</Text>
+              </View>
+            )}
+          </View>
+        )}
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -361,9 +349,6 @@ const styles = StyleSheet.create({
   tagBadgeText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
   featuredTitle: { fontSize: 22, fontWeight: '800', color: Colors.white, marginBottom: 6 },
   featuredSubtitle: { fontSize: 14, color: Colors.muted, lineHeight: 21, marginBottom: 12 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  metaItem: { fontSize: 12, color: Colors.muted, fontWeight: '500' },
-  metaDot: { fontSize: 12, color: Colors.mutedDark },
   featuredProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14 },
   progressPct: { fontSize: 12, fontWeight: '700', minWidth: 36, textAlign: 'right' },
   featuredButton: {
@@ -378,7 +363,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.cardBorder,
     borderRadius: 18, padding: 14,
   },
-  courseCardLocked: { opacity: 0.55 },
   courseIconWrap: {
     width: 48, height: 48, borderRadius: 14,
     backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1,
@@ -392,7 +376,6 @@ const styles = StyleSheet.create({
   tagBadgeSmallText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
   courseSubtitle: { fontSize: 12, color: Colors.muted, lineHeight: 18 },
   courseMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 },
-  courseMetaText: { fontSize: 11, color: Colors.mutedDark, fontWeight: '500' },
   courseStatusLabel: { fontSize: 11, fontWeight: '700' },
   courseChevron: { fontSize: 22, color: Colors.mutedDark, marginLeft: 4 },
 
