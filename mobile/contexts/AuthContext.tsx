@@ -34,6 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(profile);
         } catch {
           await AsyncStorage.removeItem('token');
+          setToken(null);
         }
       }
       setLoading(false);

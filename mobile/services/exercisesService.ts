@@ -13,6 +13,7 @@ export interface Exercise {
 
 export interface AnswerResponse {
   isCorrect: boolean;
+  correctOptionId: string;
   xp: number;
   level: number;
   streak: number;

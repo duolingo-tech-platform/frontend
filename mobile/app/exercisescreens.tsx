@@ -46,138 +46,156 @@ function TopBar({ step, total, onBack }: { step: number; total: number; onBack: 
   );
 }
 
-// ─── Tela de questão ──────────────────────────────────────────────────────────
+// ─── Tela de questão com feedback inline ──────────────────────────────────────
 
 function TelaQuestao({
-  exercise, step, total, onAnswer, onBack,
+  exercise, step, total, submitting, result, onAnswer, onNext, onBack,
 }: {
   exercise: Exercise;
   step: number;
   total: number;
+  submitting: boolean;
+  result: AnswerResponse | null;
   onAnswer: (optionId: string) => void;
+  onNext: () => void;
   onBack: () => void;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
   const letters = ['A', 'B', 'C', 'D'];
 
-  return (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={sh.screen}>
-      <TopBar step={step} total={total} onBack={onBack} />
+  const revealed = result !== null;
+  const ok = result?.isCorrect ?? false;
+  const correctId = result?.correctOptionId ?? '';
 
-      <View style={sh.badge}>
-        <Text style={sh.badgeText}>🎯 Questão {step} de {total}</Text>
-      </View>
+  function optionStyle(optId: string) {
+    if (!revealed) {
+      return selected === optId ? sh.optionSelected : {};
+    }
+    if (optId === correctId) return sh.optionCorrect;
+    if (optId === selected && !ok) return sh.optionWrong;
+    return sh.optionDim;
+  }
 
-      <View style={{ alignItems: 'center', gap: 6 }}>
-        <Text style={sh.eyebrow}>PERGUNTA</Text>
-        <Text style={sh.title}>{exercise.question}</Text>
-      </View>
+  function optionBubbleStyle(optId: string) {
+    if (!revealed) {
+      return selected === optId ? sh.optionBubbleSelected : {};
+    }
+    if (optId === correctId) return sh.optionBubbleCorrect;
+    if (optId === selected && !ok) return sh.optionBubbleWrong;
+    return {};
+  }
 
-      <View style={sh.optionsList}>
-        {exercise.options.map((opt, i) => (
-          <TouchableOpacity
-            key={opt.id}
-            activeOpacity={0.8}
-            onPress={() => setSelected(opt.id)}
-            style={[sh.option, selected === opt.id && sh.optionSelected]}
-          >
-            <View style={[sh.optionBubble, selected === opt.id && sh.optionBubbleSelected]}>
-              <Text style={[sh.optionBubbleText, selected === opt.id && sh.optionBubbleTextSelected]}>
-                {letters[i] ?? String(i + 1)}
-              </Text>
-            </View>
-            <Text style={[sh.optionText, selected === opt.id && sh.optionTextSelected]}>
-              {opt.text}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+  function optionBubbleTextStyle(optId: string) {
+    if (!revealed) {
+      return selected === optId ? sh.optionBubbleTextSelected : {};
+    }
+    if (optId === correctId || (optId === selected && !ok)) return sh.optionBubbleTextSelected;
+    return {};
+  }
 
-      <TouchableOpacity
-        activeOpacity={selected ? 0.85 : 1}
-        style={{ width: '100%', opacity: selected ? 1 : 0.4 }}
-        onPress={selected ? () => onAnswer(selected) : undefined}
-      >
-        <LinearGradient
-          colors={['#43e97b', '#38f9d7']}
-          start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-          style={sh.primaryBtn}
-        >
-          <Text style={sh.primaryBtnText}>CONFIRMAR RESPOSTA →</Text>
-        </LinearGradient>
-      </TouchableOpacity>
-    </ScrollView>
-  );
-}
-
-// ─── Tela de feedback ─────────────────────────────────────────────────────────
-
-function TelaFeedback({
-  result, isLast, onNext,
-}: {
-  result: AnswerResponse;
-  isLast: boolean;
-  onNext: () => void;
-}) {
-  const ok = result.isCorrect;
+  function optionTextStyle(optId: string) {
+    if (!revealed) {
+      return selected === optId ? sh.optionTextSelected : {};
+    }
+    if (optId === correctId) return { color: C.accent };
+    if (optId === selected && !ok) return { color: C.danger };
+    return { color: C.muted, opacity: 0.5 };
+  }
 
   return (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={sh.screen}>
+    <View style={{ flex: 1 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={sh.screen}>
+        <TopBar step={step} total={total} onBack={onBack} />
 
-      <View style={{ alignItems: 'center', gap: 14, marginTop: 40 }}>
-        <View style={[sh.feedbackCircle, {
-          backgroundColor: ok ? C.accentDim : C.dangerDim,
-          borderColor: ok ? C.accentBorder : C.dangerBorder,
-        }]}>
-          <Text style={[sh.feedbackIcon, { color: ok ? C.accent : C.danger }]}>
-            {ok ? '✓' : '✗'}
-          </Text>
+        <View style={sh.badge}>
+          <Text style={sh.badgeText}>🎯 Questão {step} de {total}</Text>
         </View>
 
-        <Text style={[sh.eyebrow, { color: ok ? C.accent : C.danger }]}>
-          {ok ? 'RESPOSTA CORRETA!' : 'RESPOSTA INCORRETA'}
-        </Text>
+        <View style={{ alignItems: 'center', gap: 6, width: '100%' }}>
+          <Text style={sh.eyebrow}>PERGUNTA</Text>
+          <Text style={sh.title}>{exercise.question}</Text>
+        </View>
 
-        <Text style={sh.title}>
-          {ok ? 'Excelente ' : 'Quase '}
-          <Text style={{ color: ok ? C.accent : C.danger }}>
-            {ok ? 'raciocínio!' : 'lá!'}
-          </Text>
-        </Text>
-      </View>
+        <View style={sh.optionsList}>
+          {exercise.options.map((opt, i) => (
+            <TouchableOpacity
+              key={opt.id}
+              activeOpacity={revealed ? 1 : 0.8}
+              onPress={() => !revealed && setSelected(opt.id)}
+              style={[sh.option, optionStyle(opt.id)]}
+            >
+              <View style={[sh.optionBubble, optionBubbleStyle(opt.id)]}>
+                <Text style={[sh.optionBubbleText, optionBubbleTextStyle(opt.id)]}>
+                  {letters[i] ?? String(i + 1)}
+                </Text>
+              </View>
+              <Text style={[sh.optionText, optionTextStyle(opt.id)]}>
+                {opt.text}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
-      <View style={sh.card}>
-        <Text style={[sh.eyebrow, { textAlign: 'left', marginBottom: 8 }]}>
-          {ok ? '🏆 RESULTADO' : '💡 TENTE NOVAMENTE'}
-        </Text>
-        <Text style={sh.cardDesc}>{result.message}</Text>
-
-        {ok && (
-          <View style={sh.xpRow}>
-            <Text style={sh.xpLabel}>Total XP:</Text>
-            <Text style={sh.xpValue}>{result.xp} XP</Text>
-          </View>
+        {/* Botão de confirmar — só aparece antes do reveal */}
+        {!revealed && (
+          <TouchableOpacity
+            activeOpacity={selected && !submitting ? 0.85 : 1}
+            style={{ width: '100%', opacity: selected && !submitting ? 1 : 0.4 }}
+            onPress={selected && !submitting ? () => onAnswer(selected) : undefined}
+          >
+            <LinearGradient
+              colors={['#43e97b', '#38f9d7']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={sh.primaryBtn}
+            >
+              {submitting
+                ? <ActivityIndicator color={C.bg} />
+                : <Text style={sh.primaryBtnText}>CONFIRMAR RESPOSTA →</Text>}
+            </LinearGradient>
+          </TouchableOpacity>
         )}
-      </View>
 
-      <TouchableOpacity activeOpacity={0.85} style={{ width: '100%' }} onPress={onNext}>
-        <LinearGradient
-          colors={['#43e97b', '#38f9d7']}
-          start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-          style={sh.primaryBtn}
-        >
-          <Text style={sh.primaryBtnText}>
-            {isLast ? 'VER RESULTADO →' : 'PRÓXIMA QUESTÃO →'}
-          </Text>
-        </LinearGradient>
-      </TouchableOpacity>
-    </ScrollView>
+        <View style={{ height: revealed ? 160 : 20 }} />
+      </ScrollView>
+
+      {/* Painel de feedback inline — aparece depois do reveal */}
+      {revealed && (
+        <View style={[sh.feedbackPanel, { borderTopColor: ok ? C.accent : C.danger, backgroundColor: ok ? 'rgba(67,233,123,0.06)' : 'rgba(255,77,109,0.06)' }]}>
+          <View style={sh.feedbackRow}>
+            <View style={[sh.feedbackIcon, { backgroundColor: ok ? C.accentDim : C.dangerDim, borderColor: ok ? C.accentBorder : C.dangerBorder }]}>
+              <Text style={{ fontSize: 20 }}>{ok ? '✓' : '✗'}</Text>
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={[sh.feedbackTitle, { color: ok ? C.accent : C.danger }]}>
+                {ok ? 'Resposta correta!' : 'Resposta incorreta'}
+              </Text>
+              <Text style={sh.feedbackMsg}>{result?.message ?? ''}</Text>
+            </View>
+            {ok && result && (
+              <View style={sh.xpBadge}>
+                <Text style={sh.xpBadgeText}>+{result.xp > 0 ? 10 : 0} XP</Text>
+              </View>
+            )}
+          </View>
+
+          <TouchableOpacity activeOpacity={0.85} style={{ width: '100%' }} onPress={onNext}>
+            <LinearGradient
+              colors={ok ? ['#43e97b', '#38f9d7'] : ['#ff4d6d', '#ff8c6b']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={sh.primaryBtn}
+            >
+              <Text style={sh.primaryBtnText}>PRÓXIMA QUESTÃO →</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
   );
 }
 
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
-type Phase = 'loading' | 'question' | 'feedback' | 'submitting' | 'error';
+type Phase = 'loading' | 'question' | 'error';
 
 export default function ExerciseNavigator() {
   const router = useRouter();
@@ -186,7 +204,8 @@ export default function ExerciseNavigator() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [index, setIndex] = useState(0);
   const [phase, setPhase] = useState<Phase>('loading');
-  const [lastResult, setLastResult] = useState<AnswerResponse | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState<AnswerResponse | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
   const [totalXp, setTotalXp] = useState(0);
   const [errorMsg, setErrorMsg] = useState('');
@@ -200,23 +219,24 @@ export default function ExerciseNavigator() {
         setPhase('question');
       })
       .catch((err: any) => {
-        console.error('[exercisescreens] erro:', err?.message, lessonId);
         setPhase('error');
         setErrorMsg(err?.message ?? 'Erro ao carregar exercícios.');
       });
   }, [lessonId]);
 
   async function handleAnswer(optionId: string) {
-    if (!exercises[index]) return;
-    setPhase('submitting');
+    if (!exercises[index] || submitting) return;
+    setSubmitting(true);
     try {
-      const result = await submitAnswer(exercises[index].id, optionId);
-      setLastResult(result);
-      if (result.isCorrect) setCorrectCount((c) => c + 1);
-      setTotalXp(result.xp);
-      setPhase('feedback');
-    } catch {
-      setPhase('question');
+      const res = await submitAnswer(exercises[index].id, optionId);
+      if (res.isCorrect) setCorrectCount((c) => c + 1);
+      setTotalXp(res.xp);
+      setResult(res);
+    } catch (err: any) {
+      setErrorMsg(err?.message ?? 'Erro ao enviar resposta.');
+      setPhase('error');
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -231,14 +251,14 @@ export default function ExerciseNavigator() {
         params: { correct: correctCount, total: exercises.length, xp: totalXp },
       });
     } else {
+      setResult(null);
       setIndex((i) => i + 1);
-      setPhase('question');
     }
   }
 
   const back = () => {
     if (index === 0) router.back();
-    else { setIndex((i) => i - 1); setPhase('question'); }
+    else { setResult(null); setIndex((i) => i - 1); }
   };
 
   return (
@@ -247,7 +267,7 @@ export default function ExerciseNavigator() {
       <LinearGradient colors={[C.bg, C.bg2, C.bg]} style={{ flex: 1 }}>
         <StatusBar barStyle="light-content" backgroundColor={C.bg} />
 
-        {(phase === 'loading' || phase === 'submitting') && (
+        {phase === 'loading' && (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
             <ActivityIndicator size="large" color={C.accent} />
           </View>
@@ -268,16 +288,11 @@ export default function ExerciseNavigator() {
             exercise={exercises[index]}
             step={index + 1}
             total={exercises.length}
+            submitting={submitting}
+            result={result}
             onAnswer={handleAnswer}
-            onBack={back}
-          />
-        )}
-
-        {phase === 'feedback' && lastResult && (
-          <TelaFeedback
-            result={lastResult}
-            isLast={index >= exercises.length - 1}
             onNext={handleNext}
+            onBack={back}
           />
         )}
       </LinearGradient>
@@ -288,7 +303,7 @@ export default function ExerciseNavigator() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const sh = StyleSheet.create({
-  screen: { paddingHorizontal: 20, paddingTop: 56, paddingBottom: 40, gap: 20, alignItems: 'center' },
+  screen: { paddingHorizontal: 20, paddingTop: 56, paddingBottom: 20, gap: 20, alignItems: 'center' },
 
   topBar: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 12 },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
@@ -310,21 +325,34 @@ const sh = StyleSheet.create({
   optionsList: { width: '100%', gap: 10 },
   option: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 14, borderRadius: 12, backgroundColor: C.card, borderWidth: 1, borderColor: C.cardBorder },
   optionSelected: { backgroundColor: C.accentDim, borderColor: C.accentBorder },
+  optionCorrect: { backgroundColor: 'rgba(67,233,123,0.15)', borderColor: C.accent },
+  optionWrong: { backgroundColor: 'rgba(255,77,109,0.15)', borderColor: C.danger },
+  optionDim: { opacity: 0.45 },
+
   optionBubble: { width: 28, height: 28, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: C.cardBorder, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   optionBubbleSelected: { backgroundColor: C.accent, borderColor: C.accent },
+  optionBubbleCorrect: { backgroundColor: C.accent, borderColor: C.accent },
+  optionBubbleWrong: { backgroundColor: C.danger, borderColor: C.danger },
   optionBubbleText: { fontSize: 11, fontWeight: '700', color: C.muted },
   optionBubbleTextSelected: { color: C.bg },
   optionText: { fontSize: 13, color: C.muted, lineHeight: 20, flex: 1 },
   optionTextSelected: { color: C.text },
 
-  feedbackCircle: { width: 90, height: 90, borderRadius: 999, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-  feedbackIcon: { fontSize: 40, fontWeight: '800' },
-
-  card: { width: '100%', backgroundColor: C.card, borderWidth: 1, borderColor: C.cardBorder, borderRadius: 16, padding: 18, gap: 8 },
-  cardDesc: { fontSize: 13, color: C.muted, lineHeight: 21 },
-  xpRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: C.cardBorder },
-  xpLabel: { fontSize: 12, color: C.muted, fontWeight: '600' },
-  xpValue: { fontSize: 16, fontWeight: '800', color: C.accent },
+  // Painel de feedback inline
+  feedbackPanel: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    paddingHorizontal: 20, paddingTop: 16, paddingBottom: 32,
+    borderTopWidth: 2, gap: 14,
+  },
+  feedbackRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  feedbackIcon: {
+    width: 44, height: 44, borderRadius: 999,
+    borderWidth: 1, alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  feedbackTitle: { fontSize: 15, fontWeight: '800' },
+  feedbackMsg: { fontSize: 12, color: C.muted, lineHeight: 17 },
+  xpBadge: { backgroundColor: C.accentDim, borderWidth: 1, borderColor: C.accentBorder, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
+  xpBadgeText: { fontSize: 12, fontWeight: '800', color: C.accent },
 
   primaryBtn: { width: '100%', height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', shadowColor: '#43e97b', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 10 },
   primaryBtnText: { fontSize: 13, fontWeight: '800', color: '#010d19', letterSpacing: 1 },

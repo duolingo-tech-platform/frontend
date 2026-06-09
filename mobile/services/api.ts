@@ -19,7 +19,8 @@ async function getHeaders(auth = false): Promise<HeadersInit> {
 
 async function handleResponse<T>(res: Response): Promise<T> {
   const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+  let data: any = null;
+  try { data = text ? JSON.parse(text) : null; } catch { /* non-JSON response */ }
   if (!res.ok) throw new Error(data?.message ?? `Erro ${res.status}`);
   return data as T;
 }
