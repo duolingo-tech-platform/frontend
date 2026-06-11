@@ -1,7 +1,8 @@
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useState } from 'react';
+import { useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { GradientButton } from '@/components/ui/GradientButton';
@@ -10,7 +11,7 @@ import { Card } from '@/components/ui/Card';
 import { StatsRow } from '@/components/ui/StatsRow';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
-import { getCourses, Course } from '@/services/coursesService';
+import { getCourses, getCourseProgress, Course, CourseProgress } from '@/services/coursesService';
 
 const COURSE_ICONS: Record<string, string> = {
   'Expo Deep Dive': '📱',
@@ -24,12 +25,37 @@ const COURSE_COLORS: Record<string, string> = {
   'AWS para App Devs': Colors.accentCyan,
 };
 
-const ACHIEVEMENTS = [
-  { icon: '🏆', label: 'Primeira Aula' },
-  { icon: '🔥', label: '7 Dias Seguidos' },
-  { icon: '⚡', label: 'Velocista' },
-  { icon: '🎯', label: 'Meta Batida' },
-];
+interface Achievement { icon: string; label: string }
+
+function computeAchievements(
+  user: { xp: number; level: number; streak: number } | null,
+  progressMap: Record<string, number>,
+): Achievement[] {
+  if (!user) return [];
+  const earned: Achievement[] = [];
+
+  const anyProgress = Object.values(progressMap).some((p) => p > 0);
+  if (anyProgress) earned.push({ icon: '🏆', label: 'Primeira Aula' });
+
+  if (user.streak >= 3)  earned.push({ icon: '📅', label: '3 Dias Seguidos' });
+  if (user.streak >= 7)  earned.push({ icon: '🔥', label: '7 Dias Seguidos' });
+  if (user.streak >= 30) earned.push({ icon: '🌙', label: '30 Dias Seguidos' });
+
+  if (user.xp >= 10)  earned.push({ icon: '⚡', label: 'Primeiros XP' });
+  if (user.xp >= 100) earned.push({ icon: '💎', label: '100 XP' });
+  if (user.xp >= 500) earned.push({ icon: '🚀', label: '500 XP' });
+
+  const any50 = Object.values(progressMap).some((p) => p >= 50);
+  if (any50) earned.push({ icon: '🎯', label: 'Meta Batida' });
+
+  const any100 = Object.values(progressMap).some((p) => p >= 100);
+  if (any100) earned.push({ icon: '🎓', label: 'Curso Completo' });
+
+  if (user.level >= 5)  earned.push({ icon: '🌟', label: 'Nível 5' });
+  if (user.level >= 10) earned.push({ icon: '👑', label: 'Nível 10' });
+
+  return earned;
+}
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -40,16 +66,27 @@ function getGreeting() {
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
+  const [progressMap, setProgressMap] = useState<Record<string, number>>({});
   const [loadingCourses, setLoadingCourses] = useState(true);
 
-  useEffect(() => {
-    getCourses()
-      .then(setCourses)
-      .catch(() => {})
-      .finally(() => setLoadingCourses(false));
+  const loadData = useCallback(async () => {
+    setLoadingCourses(true);
+    try {
+      await refreshUser();
+      const [c, p] = await Promise.all([getCourses(), getCourseProgress()]);
+      setCourses(c);
+      const map: Record<string, number> = {};
+      p.forEach((entry) => { map[entry.courseId] = entry.percent; });
+      setProgressMap(map);
+    } catch {
+    } finally {
+      setLoadingCourses(false);
+    }
   }, []);
+
+  useFocusEffect(useCallback(() => { loadData(); }, []));
 
   const initials = user?.name
     .split(' ')
@@ -91,10 +128,10 @@ export default function HomeScreen() {
         <Card padding={18} style={{ gap: 12 }}>
           <View style={styles.rowBetween}>
             <Text style={styles.cardTitle}>Meta Diária</Text>
-            <Text style={styles.accentLabel}>{user?.xp ?? 0} XP</Text>
+            <Text style={styles.accentLabel}>{Math.min(user?.xp ?? 0, 100)} / 100 XP</Text>
           </View>
-          <ProgressBar progress={Math.min(((user?.xp ?? 0) % 100), 100)} height={8} />
-          <Text style={styles.hint}>Continue aprendendo para aumentar seu XP 🎯</Text>
+          <ProgressBar progress={Math.min(user?.xp ?? 0, 100)} height={8} />
+          <Text style={styles.hint}>Continue aprendendo para subir de nível 🎯</Text>
         </Card>
 
         {/* ── UP NEXT ── */}
@@ -148,11 +185,11 @@ export default function HomeScreen() {
 
                   <View style={{ flex: 1, gap: 8 }}>
                     <Text style={styles.courseTitle}>{course.title}</Text>
-                    <ProgressBar progress={0} height={5} color={COURSE_COLORS[course.title] ?? Colors.accent} />
+                    <ProgressBar progress={progressMap[course.id] ?? 0} height={5} color={COURSE_COLORS[course.title] ?? Colors.accent} />
                   </View>
 
                   <Text style={[styles.coursePercent, { color: COURSE_COLORS[course.title] ?? Colors.accent }]}>
-                    0%
+                    {progressMap[course.id] ?? 0}%
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -160,18 +197,55 @@ export default function HomeScreen() {
           )}
         </View>
 
-        {/* ── CONQUISTAS ── */}
-        <View style={{ gap: 14 }}>
-          <Text style={styles.sectionTitle}>Conquistas Recentes</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.achievementsScroll}>
-            {ACHIEVEMENTS.map((item, i) => (
-              <View key={i} style={styles.achievementCard}>
-                <Text style={{ fontSize: 28 }}>{item.icon}</Text>
-                <Text style={styles.achievementLabel}>{item.label}</Text>
+        {/* ── REVISAR ERROS ── */}
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => router.push('/revision')}
+          style={styles.revisionCard}
+        >
+          <LinearGradient
+            colors={['rgba(249,199,79,0.10)', 'rgba(249,199,79,0.05)']}
+            style={styles.revisionCardInner}
+          >
+            <View style={styles.revisionLeft}>
+              <View style={styles.revisionIconWrap}>
+                <Text style={{ fontSize: 22 }}>🔄</Text>
               </View>
-            ))}
-          </ScrollView>
-        </View>
+              <View style={{ gap: 3 }}>
+                <Text style={styles.revisionTitle}>Revisar Erros</Text>
+                <Text style={styles.revisionSub}>Pratique o que você errou</Text>
+              </View>
+            </View>
+            <Text style={styles.revisionArrow}>›</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+
+        {/* ── CONQUISTAS ── */}
+        {(() => {
+          const earned = computeAchievements(user, progressMap);
+          return (
+            <View style={{ gap: 14 }}>
+              <Text style={styles.sectionTitle}>Conquistas</Text>
+              {earned.length === 0 ? (
+                <View style={styles.achievementEmpty}>
+                  <Text style={{ fontSize: 28 }}>🔒</Text>
+                  <Text style={styles.achievementEmptyText}>
+                    Complete uma lição para desbloquear conquistas!
+                  </Text>
+                </View>
+              ) : (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.achievementsScroll}>
+                  {earned.map((item, i) => (
+                    <View key={i} style={styles.achievementCard}>
+                      <Text style={{ fontSize: 28 }}>{item.icon}</Text>
+                      <Text style={styles.achievementLabel}>{item.label}</Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
+          );
+        })()}
 
         <View style={{ height: 90 }} />
       </ScrollView>
@@ -229,10 +303,31 @@ const styles = StyleSheet.create({
   coursePercent: { fontSize: 13, fontWeight: '700', marginLeft: 4 },
 
   achievementsScroll: { marginHorizontal: -20, paddingHorizontal: 20 },
+  achievementEmpty: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.cardBorder,
+    borderRadius: 16, padding: 16,
+  },
+  achievementEmptyText: { fontSize: 13, color: Colors.muted, fontWeight: '500', flex: 1 },
   achievementCard: {
     alignItems: 'center', gap: 8,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.cardBorder,
     borderRadius: 16, padding: 16, marginRight: 12, width: 90,
   },
   achievementLabel: { fontSize: 11, color: '#8ab0c0', fontWeight: '600', textAlign: 'center' },
+
+  revisionCard: {
+    borderRadius: 16, overflow: 'hidden',
+    borderWidth: 1, borderColor: 'rgba(249,199,79,0.25)',
+  },
+  revisionCardInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
+  revisionLeft: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  revisionIconWrap: {
+    width: 46, height: 46, borderRadius: 12,
+    backgroundColor: 'rgba(249,199,79,0.12)', borderWidth: 1, borderColor: 'rgba(249,199,79,0.3)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  revisionTitle: { fontSize: 15, fontWeight: '800', color: '#f9c74f' },
+  revisionSub: { fontSize: 12, color: '#8ab0c0' },
+  revisionArrow: { fontSize: 24, color: '#f9c74f', fontWeight: '300' },
 });

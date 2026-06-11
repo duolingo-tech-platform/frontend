@@ -9,6 +9,8 @@ import {
   Exercise, AnswerResponse,
   getExercisesByLesson, submitAnswer, completeLesson,
 } from '@/services/exercisesService';
+import { getCourseProgress } from '@/services/coursesService';
+import { useAuth } from '@/contexts/AuthContext';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
@@ -116,25 +118,54 @@ function TelaQuestao({
           <Text style={sh.title}>{exercise.question}</Text>
         </View>
 
-        <View style={sh.optionsList}>
-          {exercise.options.map((opt, i) => (
-            <TouchableOpacity
-              key={opt.id}
-              activeOpacity={revealed ? 1 : 0.8}
-              onPress={() => !revealed && setSelected(opt.id)}
-              style={[sh.option, optionStyle(opt.id)]}
-            >
-              <View style={[sh.optionBubble, optionBubbleStyle(opt.id)]}>
-                <Text style={[sh.optionBubbleText, optionBubbleTextStyle(opt.id)]}>
-                  {letters[i] ?? String(i + 1)}
+        {exercise.type === 'true_false' ? (
+          <View style={sh.vfRow}>
+            {exercise.options.map((opt) => {
+              const isV = opt.text === 'Verdadeiro';
+              let bg = sh.vfBtn;
+              let borderC = 'rgba(255,255,255,0.10)';
+              let textC = '#8ab0c0';
+              if (!revealed) {
+                if (selected === opt.id) { borderC = '#43e97b'; textC = '#43e97b'; }
+              } else {
+                if (opt.id === correctId) { borderC = '#43e97b'; textC = '#43e97b'; }
+                else if (opt.id === selected && !ok) { borderC = '#ff4d6d'; textC = '#ff4d6d'; }
+                else { textC = 'rgba(90,122,138,0.4)'; }
+              }
+              return (
+                <TouchableOpacity
+                  key={opt.id}
+                  activeOpacity={revealed ? 1 : 0.8}
+                  onPress={() => !revealed && setSelected(opt.id)}
+                  style={[sh.vfBtn, { borderColor: borderC, backgroundColor: selected === opt.id && !revealed ? 'rgba(67,233,123,0.08)' : 'rgba(255,255,255,0.03)' }]}
+                >
+                  <Text style={{ fontSize: 28 }}>{isV ? '✓' : '✗'}</Text>
+                  <Text style={[sh.vfBtnText, { color: textC }]}>{opt.text}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : (
+          <View style={sh.optionsList}>
+            {exercise.options.map((opt, i) => (
+              <TouchableOpacity
+                key={opt.id}
+                activeOpacity={revealed ? 1 : 0.8}
+                onPress={() => !revealed && setSelected(opt.id)}
+                style={[sh.option, optionStyle(opt.id)]}
+              >
+                <View style={[sh.optionBubble, optionBubbleStyle(opt.id)]}>
+                  <Text style={[sh.optionBubbleText, optionBubbleTextStyle(opt.id)]}>
+                    {letters[i] ?? String(i + 1)}
+                  </Text>
+                </View>
+                <Text style={[sh.optionText, optionTextStyle(opt.id)]}>
+                  {opt.text}
                 </Text>
-              </View>
-              <Text style={[sh.optionText, optionTextStyle(opt.id)]}>
-                {opt.text}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         {/* Botão de confirmar — só aparece antes do reveal */}
         {!revealed && (
@@ -195,11 +226,12 @@ function TelaQuestao({
 
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
-type Phase = 'loading' | 'question' | 'error';
+type Phase = 'loading' | 'question' | 'error' | 'failed';
 
 export default function ExerciseNavigator() {
   const router = useRouter();
-  const { lessonId } = useLocalSearchParams<{ lessonId: string }>();
+  const { lessonId, courseId } = useLocalSearchParams<{ lessonId: string; courseId: string }>();
+  const { refreshUser } = useAuth();
 
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [index, setIndex] = useState(0);
@@ -207,7 +239,7 @@ export default function ExerciseNavigator() {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<AnswerResponse | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
-  const [totalXp, setTotalXp] = useState(0);
+  const [earnedXp, setEarnedXp] = useState(0);
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
@@ -229,8 +261,10 @@ export default function ExerciseNavigator() {
     setSubmitting(true);
     try {
       const res = await submitAnswer(exercises[index].id, optionId);
-      if (res.isCorrect) setCorrectCount((c) => c + 1);
-      setTotalXp(res.xp);
+      if (res.isCorrect) {
+        setCorrectCount((c) => c + 1);
+        setEarnedXp((x) => x + 10);
+      }
       setResult(res);
     } catch (err: any) {
       setErrorMsg(err?.message ?? 'Erro ao enviar resposta.');
@@ -243,13 +277,37 @@ export default function ExerciseNavigator() {
   async function handleNext() {
     const isLast = index >= exercises.length - 1;
     if (isLast) {
+      // RN03 — mínimo 60% para concluir
+      const passed = exercises.length === 0 || correctCount / exercises.length >= 0.6;
+      if (!passed) {
+        setPhase('failed');
+        return;
+      }
       if (lessonId) {
         try { await completeLesson(lessonId); } catch { /* non-blocking */ }
       }
-      router.replace({
-        pathname: '/resultsummary',
-        params: { correct: correctCount, total: exercises.length, xp: totalXp },
-      });
+      await refreshUser().catch(() => {});
+
+      let courseCompleted = false;
+      if (courseId) {
+        try {
+          const progressList = await getCourseProgress();
+          const cp = progressList.find((p) => p.courseId === courseId);
+          if (cp && cp.percent >= 100) courseCompleted = true;
+        } catch { /* non-blocking */ }
+      }
+
+      if (courseCompleted) {
+        router.replace({
+          pathname: '/coursecompletion',
+          params: { courseId, xp: earnedXp, correct: correctCount, total: exercises.length },
+        });
+      } else {
+        router.replace({
+          pathname: '/resultsummary',
+          params: { correct: correctCount, total: exercises.length, xp: earnedXp },
+        });
+      }
     } else {
       setResult(null);
       setIndex((i) => i + 1);
@@ -279,6 +337,49 @@ export default function ExerciseNavigator() {
             <Text style={{ color: C.text, fontSize: 16, fontWeight: '700', textAlign: 'center' }}>{errorMsg}</Text>
             <TouchableOpacity onPress={() => router.back()} style={sh.secondaryBtn}>
               <Text style={sh.secondaryBtnText}>VOLTAR</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {phase === 'failed' && (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 20 }}>
+            <Text style={{ fontSize: 52 }}>😅</Text>
+            <Text style={{ fontSize: 22, fontWeight: '800', color: '#ffffff', textAlign: 'center' }}>
+              Quase lá!
+            </Text>
+            <Text style={{ fontSize: 14, color: '#5a7a8a', textAlign: 'center', lineHeight: 22 }}>
+              Você acertou {correctCount} de {exercises.length} questões.{'\n'}
+              Precisa de pelo menos 60% para concluir a lição.
+            </Text>
+            <View style={{ backgroundColor: 'rgba(255,77,109,0.12)', borderWidth: 1, borderColor: 'rgba(255,77,109,0.3)', borderRadius: 16, padding: 20, width: '100%', alignItems: 'center', gap: 6 }}>
+              <Text style={{ fontSize: 32, fontWeight: '800', color: '#ff4d6d' }}>
+                {Math.round((correctCount / exercises.length) * 100)}%
+              </Text>
+              <Text style={{ fontSize: 12, color: '#5a7a8a' }}>Mínimo necessário: 60%</Text>
+            </View>
+            <TouchableOpacity
+              style={{ width: '100%' }}
+              activeOpacity={0.85}
+              onPress={() => {
+                setIndex(0);
+                setResult(null);
+                setCorrectCount(0);
+                setEarnedXp(0);
+                setPhase('question');
+              }}
+            >
+              <LinearGradient
+                colors={['#43e97b', '#38f9d7']}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                style={{ width: '100%', height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Text style={{ fontSize: 13, fontWeight: '800', color: '#010d19', letterSpacing: 1 }}>
+                  TENTAR NOVAMENTE
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+            <TouchableOpacity activeOpacity={0.7} onPress={() => router.back()}>
+              <Text style={{ fontSize: 13, color: '#5a7a8a', fontWeight: '500' }}>Voltar para a lição</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -358,4 +459,9 @@ const sh = StyleSheet.create({
   primaryBtnText: { fontSize: 13, fontWeight: '800', color: '#010d19', letterSpacing: 1 },
   secondaryBtn: { width: '100%', height: 42, borderRadius: 12, borderWidth: 1, borderColor: C.accentBorder, backgroundColor: C.accentDim, alignItems: 'center', justifyContent: 'center' },
   secondaryBtnText: { fontSize: 12, fontWeight: '700', color: C.accent, letterSpacing: 0.5 },
+
+  // V/F layout
+  vfRow: { flexDirection: 'row', gap: 14, width: '100%' },
+  vfBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 24, borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.10)', backgroundColor: 'rgba(255,255,255,0.03)' },
+  vfBtnText: { fontSize: 14, fontWeight: '800', letterSpacing: 0.5 },
 });

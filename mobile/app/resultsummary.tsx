@@ -55,7 +55,7 @@ export default function LessonCompleteScreen() {
             </View>
             <View>
               <Text style={styles.xpValue}>+{xp} XP</Text>
-              <Text style={styles.xpLabel}>Total acumulado</Text>
+              <Text style={styles.xpLabel}>Ganhos nesta lição</Text>
             </View>
           </View>
           <LinearGradient

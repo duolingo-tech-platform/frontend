@@ -9,13 +9,14 @@ import {
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { StatsRow } from '@/components/ui/StatsRow';
 import { Colors } from '@/constants/colors';
-import { getCourses, Course } from '@/services/coursesService';
+import { getCourses, getCourseProgress, Course } from '@/services/coursesService';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -153,12 +154,26 @@ export default function CoursesScreen() {
   const [courses, setCourses] = useState<DisplayCourse[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const loadCourses = useCallback(() => {
+    setLoading(true);
+    let coursesData: Course[] = [];
+    let progressMap: Record<string, number> = {};
+
     getCourses()
-      .then((data) => setCourses(data.map(toDisplayCourse)))
+      .then((c) => { coursesData = c; })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => {
+        getCourseProgress()
+          .then((p) => { p.forEach((e) => { progressMap[e.courseId] = e.percent; }); })
+          .catch(() => {})
+          .finally(() => {
+            setCourses(coursesData.map((c) => ({ ...toDisplayCourse(c), progress: progressMap[c.id] ?? 0 })));
+            setLoading(false);
+          });
+      });
   }, []);
+
+  useFocusEffect(loadCourses);
 
   const filtered = courses.filter((c) => {
     const matchCat = activeCategory === 'Todos' || c.category === activeCategory;

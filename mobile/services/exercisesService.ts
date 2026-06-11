@@ -8,6 +8,7 @@ export interface ExerciseOption {
 export interface Exercise {
   id: string;
   question: string;
+  type: 'multiple_choice' | 'true_false';
   options: ExerciseOption[];
 }
 
@@ -22,6 +23,11 @@ export interface AnswerResponse {
 
 export function getExercisesByLesson(lessonId: string) {
   return apiGet<Exercise[]>(`/exercises/by-lesson/${lessonId}`);
+}
+
+// RF22/RF23 — Revisão inteligente
+export function getRevisionExercises() {
+  return apiGet<Exercise[]>('/exercises/revision');
 }
 
 export function submitAnswer(exerciseId: string, selectedOptionId: string) {

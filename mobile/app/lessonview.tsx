@@ -1,12 +1,13 @@
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useState } from 'react';
+import { useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { GradientButton } from '@/components/ui/GradientButton';
 import { Colors } from '@/constants/colors';
-import { getModules, getLessons, Module, Lesson } from '@/services/coursesService';
+import { getModules, getLessons, getProgress, Module, Lesson } from '@/services/coursesService';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -31,11 +32,11 @@ interface Unit {
 const NODE_ICONS = ['🖥️', '⚛️', '</>', '🗄️', '🔧', '📦', '🔐', '☁️', '🧩', '⚡'];
 const SIDES: Array<'left' | 'right' | 'center'> = ['left', 'right', 'center'];
 
-function lessonToNode(lesson: Lesson, index: number): LessonNode {
+function lessonToNode(lesson: Lesson, index: number, completedIds: Set<string>): LessonNode {
   return {
     id: lesson.id,
     title: lesson.title,
-    status: 'current',
+    status: completedIds.has(lesson.id) ? 'completed' : 'current',
     icon: NODE_ICONS[index % NODE_ICONS.length],
     side: SIDES[index % SIDES.length],
   };
@@ -91,29 +92,40 @@ export default function CourseMapScreen() {
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!courseId) { setLoading(false); return; }
+  useFocusEffect(
+    useCallback(() => {
+      if (!courseId) { setLoading(false); return; }
+      setLoading(true);
 
-    getModules(courseId)
-      .then(async (modules) => {
-        const units = await Promise.all(
+      const modulesPromise = getModules(courseId).then((modules) =>
+        Promise.all(
           modules.map(async (mod) => {
             const lessons = await getLessons(mod.id);
-            return {
-              id: mod.id,
-              title: mod.title,
-              nodes: lessons.map(lessonToNode),
-            };
+            return { id: mod.id, title: mod.title, lessons };
           })
-        );
-        setUnits(units);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [courseId]);
+        )
+      );
+      const progressPromise = getProgress()
+        .then((p) => new Set<string>(p.lessonIds))
+        .catch(() => new Set<string>());
+
+      Promise.all([modulesPromise, progressPromise])
+        .then(([rawUnits, completedIds]) => {
+          setUnits(
+            rawUnits.map((unit) => ({
+              id: unit.id,
+              title: unit.title,
+              nodes: unit.lessons.map((lesson, i) => lessonToNode(lesson, i, completedIds)),
+            }))
+          );
+        })
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    }, [courseId])
+  );
 
   function goToExercises(lessonId: string) {
-    router.push({ pathname: '/exercisescreens', params: { lessonId } });
+    router.push({ pathname: '/exercisescreens', params: { lessonId, courseId: courseId ?? '' } });
   }
 
   return (

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,15 +6,15 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
-  Switch,
   StatusBar,
   ActivityIndicator,
   Dimensions,
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/contexts/AuthContext';
-import { updateProfile } from '@/services/authService';
+import { updateProfile, changePassword, deleteAccount, getAdminStats, PlatformStats, setRankingVisibility } from '@/services/authService';
+import { getProgress, getCourseProgress, getProgressHistory, HistoryItem } from '@/services/coursesService';
 
 const { width } = Dimensions.get('window');
 
@@ -107,10 +107,63 @@ function StatItem({ value, label }: StatItemProps) {
   );
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+type Achievement = { icon: string; label: string };
+
+function computeAchievements(
+  user: { xp: number; streak: number; level: number } | null,
+  progressMap: Record<string, number>,
+): Achievement[] {
+  if (!user) return [];
+  const earned: Achievement[] = [];
+  const anyProgress = Object.values(progressMap).some((p) => p > 0);
+  if (anyProgress) earned.push({ icon: '🏆', label: 'Primeira Aula' });
+  if (user.streak >= 3) earned.push({ icon: '📅', label: '3 Dias Seguidos' });
+  if (user.streak >= 7) earned.push({ icon: '🔥', label: '7 Dias Seguidos' });
+  if (user.streak >= 30) earned.push({ icon: '🌙', label: '30 Dias Seguidos' });
+  if (user.xp >= 10) earned.push({ icon: '⚡', label: 'Primeiros XP' });
+  if (user.xp >= 100) earned.push({ icon: '💎', label: '100 XP' });
+  if (user.xp >= 500) earned.push({ icon: '🚀', label: '500 XP' });
+  const any50 = Object.values(progressMap).some((p) => p >= 50);
+  if (any50) earned.push({ icon: '🎯', label: 'Meta Batida' });
+  const any100 = Object.values(progressMap).some((p) => p >= 100);
+  if (any100) earned.push({ icon: '🎓', label: 'Curso Completo' });
+  if (user.level >= 5) earned.push({ icon: '🌟', label: 'Nível 5' });
+  if (user.level >= 10) earned.push({ icon: '👑', label: 'Nível 10' });
+  return earned;
+}
+
 // ─── TELA 1: Perfil ──────────────────────────────────────────────────────────
 
 export function TelaPerfil({ onNavigate, onSignOut }: { onNavigate: (screen: string) => void; onSignOut: () => void }) {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
+  const [progressMap, setProgressMap] = useState<Record<string, number>>({});
+  const [loadingProgress, setLoadingProgress] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      async function load() {
+        setLoadingProgress(true);
+        try {
+          await refreshUser();
+          const courseData = await getCourseProgress();
+          if (!active) return;
+          const map: Record<string, number> = {};
+          courseData.forEach((cp) => { map[cp.courseId] = cp.percent; });
+          setProgressMap(map);
+        } catch {
+        } finally {
+          if (active) setLoadingProgress(false);
+        }
+      }
+      load();
+      return () => { active = false; };
+    }, [])
+  );
+
+  const achievements = computeAchievements(user, progressMap);
 
   const displayName = user?.name ?? '';
   const displayEmail = user?.email ?? '';
@@ -123,7 +176,7 @@ export function TelaPerfil({ onNavigate, onSignOut }: { onNavigate: (screen: str
   const level = user?.level ?? 0;
   const xp = user?.xp ?? 0;
   const streak = user?.streak ?? 0;
-  const xpInLevel = xp % 100;
+  const xpInLevel = xp % 100 === 0 && xp > 0 ? 100 : xp % 100;
   const xpToNext = 100 - xpInLevel;
   const xpProgress = xpInLevel / 100;
 
@@ -192,20 +245,26 @@ export function TelaPerfil({ onNavigate, onSignOut }: { onNavigate: (screen: str
 
         {/* Conquistas */}
         <SectionCard>
-          <Text style={s.sectionLabel}>🏅 CONQUISTAS RECENTES</Text>
-          <View style={s.badgesRow}>
-            {[
-              { icon: '⚡', name: 'Speed Run' },
-              { icon: '🎯', name: '100% Acerto' },
-              { icon: '🔥', name: '7 Dias Seguidos' },
-              { icon: '🚀', name: 'First Steps' },
-            ].map((b) => (
-              <View key={b.name} style={s.achievementChip}>
-                <Text style={{ fontSize: 18 }}>{b.icon}</Text>
-                <Text style={s.achievementLabel}>{b.name}</Text>
-              </View>
-            ))}
-          </View>
+          <Text style={s.sectionLabel}>🏅 CONQUISTAS DESBLOQUEADAS</Text>
+          {loadingProgress ? (
+            <ActivityIndicator color={C.accent} style={{ paddingVertical: 16 }} />
+          ) : achievements.length === 0 ? (
+            <View style={{ alignItems: 'center', paddingVertical: 16, gap: 6 }}>
+              <Text style={{ fontSize: 28 }}>🔒</Text>
+              <Text style={{ fontSize: 13, color: C.muted, textAlign: 'center' }}>
+                Complete lições para desbloquear conquistas
+              </Text>
+            </View>
+          ) : (
+            <View style={s.badgesRow}>
+              {achievements.map((b) => (
+                <View key={b.label} style={s.achievementChip}>
+                  <Text style={{ fontSize: 18 }}>{b.icon}</Text>
+                  <Text style={s.achievementLabel}>{b.label}</Text>
+                </View>
+              ))}
+            </View>
+          )}
         </SectionCard>
 
         {/* Quick nav */}
@@ -227,7 +286,7 @@ export function TelaEditarPerfil({ onNavigate }: { onNavigate: (screen: string) 
   const { user, refreshUser } = useAuth();
   const [nome, setNome] = useState(user?.name ?? '');
   const [email, setEmail] = useState(user?.email ?? '');
-  const [bio, setBio] = useState('');
+  const [bio, setBio] = useState(user?.bio ?? '');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
@@ -244,7 +303,7 @@ export function TelaEditarPerfil({ onNavigate }: { onNavigate: (screen: string) 
     setSaving(true);
     setError('');
     try {
-      await updateProfile({ name: nome.trim(), email: email.trim() });
+      await updateProfile({ name: nome.trim(), email: email.trim(), bio: bio.trim() });
       await refreshUser();
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -269,16 +328,13 @@ export function TelaEditarPerfil({ onNavigate }: { onNavigate: (screen: string) 
           <View style={{ width: 60 }} />
         </View>
 
-        {/* Avatar edit */}
+        {/* Avatar */}
         <View style={s.avatarSection}>
           <View style={s.glowRing}>
             <View style={s.avatar}>
               <Text style={s.avatarText}>{displayInitials}</Text>
             </View>
           </View>
-          <TouchableOpacity activeOpacity={0.7} style={sh.badge}>
-            <Text style={sh.badgeText}>📷 Alterar foto</Text>
-          </TouchableOpacity>
         </View>
 
         {/* Form */}
@@ -325,9 +381,7 @@ export function TelaEditarPerfil({ onNavigate }: { onNavigate: (screen: string) 
 
         <SectionCard>
           <Text style={s.sectionLabel}>SEGURANÇA</Text>
-          <RowItem icon="🔑" label="Alterar senha" onPress={() => {}} />
-          <View style={sh.separator} />
-          <RowItem icon="📱" label="Autenticação em 2 fatores" value="Ativo" accent onPress={() => {}} />
+          <RowItem icon="🔑" label="Alterar senha" onPress={() => onNavigate('alterar-senha')} />
         </SectionCard>
 
         {error ? (
@@ -363,38 +417,65 @@ export function TelaEditarPerfil({ onNavigate }: { onNavigate: (screen: string) 
 
 // ─── TELA 3: Histórico ───────────────────────────────────────────────────────
 
-type HistoricoItem = {
-  id: string;
-  icon: string;
-  title: string;
-  subtitle: string;
-  xp: string;
-  time: string;
-  correct?: boolean;
-};
+function courseIcon(title: string): string {
+  const t = title.toLowerCase();
+  if (t.includes('react')) return '⚡';
+  if (t.includes('aws') || t.includes('cloud')) return '☁️';
+  if (t.includes('docker') || t.includes('container')) return '🐳';
+  if (t.includes('python')) return '🐍';
+  if (t.includes('node') || t.includes('javascript')) return '💚';
+  if (t.includes('typescript')) return '🔷';
+  if (t.includes('kubernetes') || t.includes('k8s')) return '⚙️';
+  if (t.includes('java') || t.includes('spring')) return '☕';
+  return '💻';
+}
 
-const HISTORICO_DATA: HistoricoItem[] = [
-  { id: '1', icon: '⚡', title: 'React Native — Módulo 4', subtitle: 'Virtual DOM · Verdadeiro/Falso', xp: '+20 XP', time: 'Hoje, 14h22', correct: true },
-  { id: '2', icon: '💻', title: 'AWS — Módulo 2', subtitle: 'Lambda · Completar Código', xp: '+30 XP', time: 'Hoje, 13h10', correct: true },
-  { id: '3', icon: '🎯', title: 'React Native — Módulo 3', subtitle: 'Hooks · Múltipla Escolha', xp: '+10 XP', time: 'Ontem, 20h05', correct: false },
-  { id: '4', icon: '☁️', title: 'AWS — Módulo 1', subtitle: 'S3 · Múltipla Escolha', xp: '+30 XP', time: 'Ontem, 19h33', correct: true },
-  { id: '5', icon: '⚡', title: 'React Native — Módulo 2', subtitle: 'Components · Completar Código', xp: '+30 XP', time: '22 Mai, 11h00', correct: true },
-  { id: '6', icon: '🎯', title: 'React Native — Módulo 1', subtitle: 'JSX · Múltipla Escolha', xp: '+20 XP', time: '21 Mai, 09h15', correct: true },
-];
+function formatDate(iso: string): string {
+  const date = new Date(iso);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  const time = `${hh}h${mm}`;
+  if (d.getTime() === today.getTime()) return `Hoje, ${time}`;
+  if (d.getTime() === yesterday.getTime()) return `Ontem, ${time}`;
+  const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  return `${date.getDate()} ${months[date.getMonth()]}, ${time}`;
+}
 
 export function TelaHistorico({ onNavigate }: { onNavigate: (screen: string) => void }) {
   const [filter, setFilter] = useState<'todos' | 'acerto' | 'erro'>('todos');
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = HISTORICO_DATA.filter((i) => {
-    if (filter === 'acerto') return i.correct;
-    if (filter === 'erro') return !i.correct;
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      setLoading(true);
+      getProgressHistory()
+        .then((data) => { if (active) { setHistory(data); setLoading(false); } })
+        .catch(() => { if (active) setLoading(false); });
+      return () => { active = false; };
+    }, [])
+  );
+
+  const filtered = history.filter((i) => {
+    const correct = i.totalExercises > 0 && i.correctAnswers === i.totalExercises;
+    if (filter === 'acerto') return correct;
+    if (filter === 'erro') return !correct;
     return true;
   });
 
+  const totalLessons = history.length;
+  const totalCorrect = history.filter((i) => i.totalExercises > 0 && i.correctAnswers === i.totalExercises).length;
+  const rate = totalLessons > 0 ? Math.round((totalCorrect / totalLessons) * 100) : 0;
+
   const filters: { key: typeof filter; label: string }[] = [
     { key: 'todos', label: 'Todos' },
-    { key: 'acerto', label: '✓ Acertos' },
-    { key: 'erro', label: '✗ Erros' },
+    { key: 'acerto', label: '✓ Perfeito' },
+    { key: 'erro', label: '✗ Com Erros' },
   ];
 
   return (
@@ -411,81 +492,88 @@ export function TelaHistorico({ onNavigate }: { onNavigate: (screen: string) => 
           <View style={{ width: 60 }} />
         </View>
 
-        {/* Summary */}
-        <View style={s.statsRow}>
-          <StatItem value={String(HISTORICO_DATA.length)} label="Total" />
-          <View style={sh.divider} />
-          <StatItem value={String(HISTORICO_DATA.filter((i) => i.correct).length)} label="Acertos" />
-          <View style={sh.divider} />
-          <StatItem value="83%" label="Taxa" />
-        </View>
-
-        {/* Filters */}
-        <View style={s.filterRow}>
-          {filters.map((f) => (
-            <TouchableOpacity
-              key={f.key}
-              activeOpacity={0.7}
-              onPress={() => setFilter(f.key)}
-              style={[
-                s.filterBtn,
-                filter === f.key && s.filterBtnActive,
-              ]}
-            >
-              <Text style={[s.filterBtnText, filter === f.key && s.filterBtnTextActive]}>
-                {f.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* List */}
-        <View style={{ gap: 10 }}>
-          {filtered.map((item) => (
-            <View key={item.id} style={s.historyCard}>
-              <View
-                style={[
-                  s.historyIcon,
-                  item.correct
-                    ? { backgroundColor: C.accentDim, borderColor: C.accentBorder }
-                    : { backgroundColor: C.dangerDim, borderColor: C.dangerBorder },
-                ]}
-              >
-                <Text style={{ fontSize: 18 }}>{item.icon}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.historyTitle}>{item.title}</Text>
-                <Text style={s.historySubtitle}>{item.subtitle}</Text>
-                <Text style={s.historyTime}>{item.time}</Text>
-              </View>
-              <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                <Text
-                  style={[
-                    s.historyXp,
-                    !item.correct && { color: C.danger },
-                  ]}
-                >
-                  {item.xp}
-                </Text>
-                <View
-                  style={[
-                    s.correctBadge,
-                    !item.correct && { backgroundColor: C.dangerDim, borderColor: C.dangerBorder },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      s.correctBadgeText,
-                      !item.correct && { color: C.danger },
-                    ]}
-                  >
-                    {item.correct ? '✓' : '✗'}
-                  </Text>
-                </View>
-              </View>
+        {loading ? (
+          <ActivityIndicator color={C.accent} style={{ marginTop: 40 }} />
+        ) : (
+          <>
+            {/* Summary */}
+            <View style={s.statsRow}>
+              <StatItem value={String(totalLessons)} label="Lições" />
+              <View style={sh.divider} />
+              <StatItem value={String(totalCorrect)} label="Perfeitas" />
+              <View style={sh.divider} />
+              <StatItem value={`${rate}%`} label="Taxa" />
             </View>
-          ))}
-        </View>
+
+            {/* Filters */}
+            <View style={s.filterRow}>
+              {filters.map((f) => (
+                <TouchableOpacity
+                  key={f.key}
+                  activeOpacity={0.7}
+                  onPress={() => setFilter(f.key)}
+                  style={[s.filterBtn, filter === f.key && s.filterBtnActive]}
+                >
+                  <Text style={[s.filterBtnText, filter === f.key && s.filterBtnTextActive]}>
+                    {f.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* List */}
+            {filtered.length === 0 ? (
+              <View style={{ alignItems: 'center', paddingVertical: 32, gap: 8 }}>
+                <Text style={{ fontSize: 32 }}>📭</Text>
+                <Text style={{ fontSize: 14, color: C.muted, textAlign: 'center' }}>
+                  {history.length === 0
+                    ? 'Nenhuma lição concluída ainda'
+                    : 'Nenhum resultado para esse filtro'}
+                </Text>
+              </View>
+            ) : (
+              <View style={{ gap: 10, width: '100%' }}>
+                {filtered.map((item) => {
+                  const perfect = item.totalExercises > 0 && item.correctAnswers === item.totalExercises;
+                  const icon = courseIcon(item.courseTitle);
+                  return (
+                    <View key={item.lessonId} style={s.historyCard}>
+                      <View
+                        style={[
+                          s.historyIcon,
+                          perfect
+                            ? { backgroundColor: C.accentDim, borderColor: C.accentBorder }
+                            : { backgroundColor: C.warnDim, borderColor: 'rgba(249,199,79,0.3)' },
+                        ]}
+                      >
+                        <Text style={{ fontSize: 18 }}>{icon}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.historyTitle} numberOfLines={1}>
+                          {item.courseTitle} — {item.moduleTitle}
+                        </Text>
+                        <Text style={s.historySubtitle} numberOfLines={1}>{item.lessonTitle}</Text>
+                        <Text style={s.historyTime}>{formatDate(item.completedAt)}</Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                        <Text style={[s.historyXp, !perfect && { color: C.warn }]}>
+                          {item.xpEarned > 0 ? `+${item.xpEarned} XP` : '0 XP'}
+                        </Text>
+                        <View style={[s.correctBadge, !perfect && { backgroundColor: C.warnDim, borderColor: 'rgba(249,199,79,0.3)' }]}>
+                          <Text style={[s.correctBadgeText, !perfect && { color: C.warn }]}>
+                            {item.totalExercises > 0
+                              ? `${item.correctAnswers}/${item.totalExercises}`
+                              : '✓'}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </>
+        )}
       </ScrollView>
     </LinearGradient>
   );
@@ -494,40 +582,21 @@ export function TelaHistorico({ onNavigate }: { onNavigate: (screen: string) => 
 // ─── TELA 4: Configurações ────────────────────────────────────────────────────
 
 export function TelaConfiguracoes({ onNavigate, onSignOut }: { onNavigate: (screen: string) => void; onSignOut: () => void }) {
-  const [notif, setNotif] = useState(true);
-  const [sound, setSound] = useState(true);
-  const [darkMode, setDarkMode] = useState(true);
-  const [haptic, setHaptic] = useState(false);
+  const { user, refreshUser } = useAuth();
+  const [rankingVisible, setRankingVisible] = useState(user?.showInRanking ?? true);
+  const [savingRanking, setSavingRanking] = useState(false);
 
-  type ToggleRowProps = {
-    icon: string;
-    label: string;
-    sub: string;
-    value: boolean;
-    onChange: (v: boolean) => void;
-  };
-
-  function ToggleRow({ icon, label, sub, value, onChange }: ToggleRowProps) {
-    return (
-      <View style={s.toggleRow}>
-        <View style={sh.rowLeft}>
-          <View style={sh.rowIcon}>
-            <Text style={{ fontSize: 16 }}>{icon}</Text>
-          </View>
-          <View>
-            <Text style={s.toggleLabel}>{label}</Text>
-            <Text style={s.toggleSub}>{sub}</Text>
-          </View>
-        </View>
-        <Switch
-          value={value}
-          onValueChange={onChange}
-          trackColor={{ false: C.cardBorder, true: C.accentBorder }}
-          thumbColor={value ? C.accent : C.muted}
-          ios_backgroundColor={C.card}
-        />
-      </View>
-    );
+  async function handleToggleRanking(value: boolean) {
+    setRankingVisible(value);
+    setSavingRanking(true);
+    try {
+      await setRankingVisibility(value);
+      await refreshUser();
+    } catch {
+      setRankingVisible(!value);
+    } finally {
+      setSavingRanking(false);
+    }
   }
 
   return (
@@ -554,54 +623,41 @@ export function TelaConfiguracoes({ onNavigate, onSignOut }: { onNavigate: (scre
           <RowItem icon="🗑️" label="Deletar Conta" danger onPress={() => onNavigate('deletar-conta')} />
         </SectionCard>
 
-        {/* Notificações */}
+        {/* Privacidade */}
         <SectionCard>
-          <Text style={s.sectionLabel}>NOTIFICAÇÕES</Text>
-          <ToggleRow
-            icon="🔔"
-            label="Notificações push"
-            sub="Lembretes de estudo diário"
-            value={notif}
-            onChange={setNotif}
-          />
-          <View style={sh.separator} />
-          <ToggleRow
-            icon="🔊"
-            label="Sons do app"
-            sub="Efeitos de acerto e erro"
-            value={sound}
-            onChange={setSound}
-          />
-          <View style={sh.separator} />
-          <ToggleRow
-            icon="📳"
-            label="Vibração (Haptic)"
-            sub="Feedback tátil nas respostas"
-            value={haptic}
-            onChange={setHaptic}
-          />
+          <Text style={s.sectionLabel}>PRIVACIDADE</Text>
+          <View style={s.toggleRow}>
+            <View style={sh.rowLeft}>
+              <View style={[sh.rowIcon, { backgroundColor: 'rgba(249,199,79,0.10)', borderColor: 'rgba(249,199,79,0.25)' }]}>
+                <Text style={{ fontSize: 16 }}>🏅</Text>
+              </View>
+              <View style={{ gap: 2 }}>
+                <Text style={sh.rowLabel}>Aparecer no Ranking</Text>
+                <Text style={s.toggleSub}>
+                  {rankingVisible ? 'Visível para outros usuários' : 'Oculto do ranking público'}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              activeOpacity={savingRanking ? 1 : 0.8}
+              onPress={savingRanking ? undefined : () => handleToggleRanking(!rankingVisible)}
+              style={[s.toggleTrack, rankingVisible ? s.toggleTrackOn : s.toggleTrackOff]}
+            >
+              <View style={[s.toggleThumb, rankingVisible ? s.toggleThumbOn : s.toggleThumbOff]} />
+            </TouchableOpacity>
+          </View>
         </SectionCard>
 
-        {/* Aparência */}
+        {/* Plataforma */}
         <SectionCard>
-          <Text style={s.sectionLabel}>APARÊNCIA</Text>
-          <ToggleRow
-            icon="🌙"
-            label="Modo escuro"
-            sub="Tema atual do aplicativo"
-            value={darkMode}
-            onChange={setDarkMode}
-          />
+          <Text style={s.sectionLabel}>PLATAFORMA</Text>
+          <RowItem icon="📊" label="Estatísticas da Plataforma" accent onPress={() => onNavigate('estatisticas')} />
         </SectionCard>
 
         {/* Suporte */}
         <SectionCard>
           <Text style={s.sectionLabel}>SUPORTE</Text>
           <RowItem icon="❓" label="Central de Ajuda" onPress={() => onNavigate('central-ajuda')} />
-          <View style={sh.separator} />
-          <RowItem icon="📩" label="Fale Conosco" onPress={() => onNavigate('contato')} />
-          <View style={sh.separator} />
-          <RowItem icon="⭐" label="Avalie o App" onPress={() => onNavigate('avaliar')} />
           <View style={sh.separator} />
           <RowItem icon="📄" label="Termos de Uso" onPress={() => onNavigate('termos')} />
         </SectionCard>
@@ -632,35 +688,12 @@ export function TelaAlterarSenha({ onNavigate }: { onNavigate: (screen: string) 
   const [showNova, setShowNova] = useState(false);
   const [showConfirma, setShowConfirma] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   const novaStrength = nova.length === 0 ? null : nova.length < 6 ? 'fraca' : nova.length < 10 ? 'média' : 'forte';
   const strengthColor = novaStrength === 'fraca' ? '#ff4d4d' : novaStrength === 'média' ? '#ffaa00' : '#43e97b';
   const strengthWidth = novaStrength === 'fraca' ? '33%' : novaStrength === 'média' ? '66%' : '100%';
-
-  function PasswordField({ label, value, onChange, show, onToggle }: {
-    label: string; value: string; onChange: (v: string) => void;
-    show: boolean; onToggle: () => void;
-  }) {
-    return (
-      <View style={s.fieldGroup}>
-        <Text style={s.fieldLabel}>{label}</Text>
-        <View style={[s.input, { flexDirection: 'row', alignItems: 'center', paddingVertical: 0, height: 48 }]}>
-          <TextInput
-            style={{ flex: 1, color: C.text, fontSize: 14 }}
-            value={value}
-            onChangeText={onChange}
-            secureTextEntry={!show}
-            placeholderTextColor={C.muted}
-            placeholder="••••••••"
-            selectionColor={C.accent}
-          />
-          <TouchableOpacity onPress={onToggle} activeOpacity={0.7} style={{ padding: 8 }}>
-            <Text style={{ fontSize: 16 }}>{show ? '🙈' : '👁️'}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
 
   return (
     <LinearGradient colors={[C.bg, C.bg2, C.bg]} style={s.container}>
@@ -677,8 +710,47 @@ export function TelaAlterarSenha({ onNavigate }: { onNavigate: (screen: string) 
 
         <View style={[sh.card, { width: '100%' }]}>
           <Text style={s.sectionLabel}>SEGURANÇA</Text>
-          <PasswordField label="SENHA ATUAL" value={atual} onChange={setAtual} show={showAtual} onToggle={() => setShowAtual(v => !v)} />
-          <PasswordField label="NOVA SENHA" value={nova} onChange={setNova} show={showNova} onToggle={() => setShowNova(v => !v)} />
+
+          {/* Senha atual */}
+          <View style={s.fieldGroup}>
+            <Text style={s.fieldLabel}>SENHA ATUAL</Text>
+            <View style={[s.input, { flexDirection: 'row', alignItems: 'center', paddingVertical: 0, height: 48 }]}>
+              <TextInput
+                style={{ flex: 1, color: C.text, fontSize: 14 }}
+                value={atual}
+                onChangeText={setAtual}
+                secureTextEntry={!showAtual}
+                placeholderTextColor={C.muted}
+                placeholder="••••••••"
+                selectionColor={C.accent}
+                autoCorrect={false}
+              />
+              <TouchableOpacity onPress={() => setShowAtual(v => !v)} activeOpacity={0.7} style={{ padding: 8 }}>
+                <Text style={{ fontSize: 16 }}>{showAtual ? '🙈' : '👁️'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Nova senha */}
+          <View style={s.fieldGroup}>
+            <Text style={s.fieldLabel}>NOVA SENHA</Text>
+            <View style={[s.input, { flexDirection: 'row', alignItems: 'center', paddingVertical: 0, height: 48 }]}>
+              <TextInput
+                style={{ flex: 1, color: C.text, fontSize: 14 }}
+                value={nova}
+                onChangeText={setNova}
+                secureTextEntry={!showNova}
+                placeholderTextColor={C.muted}
+                placeholder="••••••••"
+                selectionColor={C.accent}
+                autoCorrect={false}
+              />
+              <TouchableOpacity onPress={() => setShowNova(v => !v)} activeOpacity={0.7} style={{ padding: 8 }}>
+                <Text style={{ fontSize: 16 }}>{showNova ? '🙈' : '👁️'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
           {nova.length > 0 && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
               <View style={{ flex: 1, height: 4, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 999, overflow: 'hidden' }}>
@@ -687,24 +759,66 @@ export function TelaAlterarSenha({ onNavigate }: { onNavigate: (screen: string) 
               <Text style={{ fontSize: 11, fontWeight: '600', color: strengthColor }}>Senha {novaStrength}</Text>
             </View>
           )}
-          <PasswordField label="CONFIRMAR NOVA SENHA" value={confirma} onChange={setConfirma} show={showConfirma} onToggle={() => setShowConfirma(v => !v)} />
+
+          {/* Confirmar nova senha */}
+          <View style={s.fieldGroup}>
+            <Text style={s.fieldLabel}>CONFIRMAR NOVA SENHA</Text>
+            <View style={[s.input, { flexDirection: 'row', alignItems: 'center', paddingVertical: 0, height: 48 }]}>
+              <TextInput
+                style={{ flex: 1, color: C.text, fontSize: 14 }}
+                value={confirma}
+                onChangeText={setConfirma}
+                secureTextEntry={!showConfirma}
+                placeholderTextColor={C.muted}
+                placeholder="••••••••"
+                selectionColor={C.accent}
+                autoCorrect={false}
+              />
+              <TouchableOpacity onPress={() => setShowConfirma(v => !v)} activeOpacity={0.7} style={{ padding: 8 }}>
+                <Text style={{ fontSize: 16 }}>{showConfirma ? '🙈' : '👁️'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
           {confirma.length > 0 && confirma !== nova && (
             <Text style={{ fontSize: 12, color: C.danger, marginTop: -8, marginBottom: 4 }}>Senhas não coincidem</Text>
           )}
         </View>
 
+        {error ? (
+          <Text style={{ fontSize: 12, color: C.danger, textAlign: 'center', marginTop: -8 }}>{error}</Text>
+        ) : null}
+
         <View style={s.actions}>
           <TouchableOpacity
-            activeOpacity={0.85}
-            style={{ width: '100%' }}
-            onPress={() => { setSaved(true); setTimeout(() => setSaved(false), 2000); }}
+            activeOpacity={saving || !atual || !nova || nova !== confirma ? 1 : 0.85}
+            style={{ width: '100%', opacity: saving || !atual || !nova || nova !== confirma ? 0.5 : 1 }}
+            onPress={async () => {
+              if (saving || !atual || !nova || nova !== confirma) return;
+              setSaving(true);
+              setError('');
+              try {
+                await changePassword(atual, nova);
+                setSaved(true);
+                setAtual('');
+                setNova('');
+                setConfirma('');
+                setTimeout(() => setSaved(false), 3000);
+              } catch (e: any) {
+                setError(e.message ?? 'Erro ao alterar senha.');
+              } finally {
+                setSaving(false);
+              }
+            }}
           >
             <LinearGradient
               colors={saved ? ['#38f9d7', '#43e97b'] : ['#43e97b', '#38f9d7']}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
               style={s.primaryButton}
             >
-              <Text style={s.primaryButtonText}>{saved ? '✓ SENHA ATUALIZADA' : 'SALVAR NOVA SENHA'}</Text>
+              {saving
+                ? <ActivityIndicator color={C.bg} />
+                : <Text style={s.primaryButtonText}>{saved ? '✓ SENHA ATUALIZADA' : 'SALVAR NOVA SENHA'}</Text>}
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -713,82 +827,29 @@ export function TelaAlterarSenha({ onNavigate }: { onNavigate: (screen: string) 
   );
 }
 
-// ─── TELA 6: 2FA ─────────────────────────────────────────────────────────────
-
-export function TelaDoisFA({ onNavigate }: { onNavigate: (screen: string) => void }) {
-  const [enabled, setEnabled] = useState(true);
-  const backupCodes = ['A3F-7KP', 'B9X-2MN', 'C5T-8QR', 'D1Y-4VW', 'E6Z-3LH'];
-
-  return (
-    <LinearGradient colors={[C.bg, C.bg2, C.bg]} style={s.container}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
-      <Stack.Screen options={{ headerShown: false }} />
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
-        <View style={s.headerRow}>
-          <TouchableOpacity activeOpacity={0.7} onPress={() => onNavigate('configuracoes')}>
-            <Text style={s.backBtn}>‹ Voltar</Text>
-          </TouchableOpacity>
-          <Text style={s.headerTitle}>2FA</Text>
-          <View style={{ width: 60 }} />
-        </View>
-
-        <SectionCard>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontWeight: '700', color: C.text, marginBottom: 4 }}>Autenticação em 2 Fatores</Text>
-              <Text style={{ fontSize: 12, color: C.muted, lineHeight: 18 }}>
-                Adiciona uma camada extra de segurança à sua conta.
-              </Text>
-            </View>
-            <Switch
-              value={enabled}
-              onValueChange={setEnabled}
-              trackColor={{ false: C.cardBorder, true: C.accentBorder }}
-              thumbColor={enabled ? C.accent : C.muted}
-              ios_backgroundColor={C.card}
-            />
-          </View>
-        </SectionCard>
-
-        {enabled && (
-          <>
-            <View style={[sh.card, { width: '100%', alignItems: 'center', gap: 12 }]}>
-              <Text style={s.sectionLabel}>QR CODE</Text>
-              <View style={{ width: 160, height: 160, backgroundColor: '#ffffff', borderRadius: 16, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontSize: 48 }}>📱</Text>
-                <Text style={{ fontSize: 10, color: '#010d19', fontWeight: '600', marginTop: 8 }}>Escaneie no app</Text>
-              </View>
-              <Text style={{ fontSize: 12, color: C.muted, textAlign: 'center', lineHeight: 18 }}>
-                Use Google Authenticator ou Authy para escanear o QR Code
-              </Text>
-            </View>
-
-            <View style={[sh.card, { width: '100%' }]}>
-              <Text style={s.sectionLabel}>CÓDIGOS DE BACKUP</Text>
-              <Text style={{ fontSize: 12, color: C.muted, marginBottom: 12, lineHeight: 18 }}>
-                Guarde estes códigos em local seguro. Cada um pode ser usado uma vez.
-              </Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {backupCodes.map(code => (
-                  <View key={code} style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: C.cardBorder, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }}>
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: C.accent, letterSpacing: 1 }}>{code}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          </>
-        )}
-      </ScrollView>
-    </LinearGradient>
-  );
-}
-
-// ─── TELA 7: Deletar Conta ────────────────────────────────────────────────────
+// ─── TELA 6: Deletar Conta ───────────────────────────────────────────────────
 
 export function TelaDeletarConta({ onNavigate }: { onNavigate: (screen: string) => void }) {
   const router = useRouter();
+  const { logout } = useAuth();
   const [confirm, setConfirm] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState('');
   const canDelete = confirm === 'DELETAR';
+
+  async function handleDelete() {
+    if (!canDelete || deleting) return;
+    setDeleting(true);
+    setError('');
+    try {
+      await deleteAccount();
+      await logout();
+      router.replace('/login');
+    } catch (e: any) {
+      setError(e.message ?? 'Erro ao deletar conta.');
+      setDeleting(false);
+    }
+  }
 
   return (
     <LinearGradient colors={[C.bg, C.bg2, C.bg]} style={s.container}>
@@ -839,13 +900,19 @@ export function TelaDeletarConta({ onNavigate }: { onNavigate: (screen: string) 
           />
         </View>
 
+        {error ? (
+          <Text style={{ fontSize: 12, color: C.danger, textAlign: 'center', marginTop: -8 }}>{error}</Text>
+        ) : null}
+
         <View style={s.actions}>
           <TouchableOpacity
-            activeOpacity={canDelete ? 0.85 : 1}
-            style={[s.dangerButton, !canDelete && { opacity: 0.4 }]}
-            onPress={canDelete ? () => router.replace('/login') : undefined}
+            activeOpacity={canDelete && !deleting ? 0.85 : 1}
+            style={[s.dangerButton, (!canDelete || deleting) && { opacity: 0.4 }]}
+            onPress={handleDelete}
           >
-            <Text style={s.dangerButtonText}>🗑️ DELETAR MINHA CONTA</Text>
+            {deleting
+              ? <ActivityIndicator color={C.danger} />
+              : <Text style={s.dangerButtonText}>🗑️ DELETAR MINHA CONTA</Text>}
           </TouchableOpacity>
           <TouchableOpacity activeOpacity={0.7} onPress={() => onNavigate('configuracoes')}>
             <Text style={{ fontSize: 14, color: C.muted, fontWeight: '500' }}>Cancelar</Text>
@@ -908,203 +975,12 @@ export function TelaCentralAjuda({ onNavigate }: { onNavigate: (screen: string) 
           ))}
         </View>
 
-        <View style={[sh.card, { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 14 }]}>
-          <Text style={{ fontSize: 28 }}>💬</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: C.text, marginBottom: 4 }}>Não encontrou sua resposta?</Text>
-            <TouchableOpacity activeOpacity={0.7} onPress={() => onNavigate('contato')}>
-              <Text style={{ fontSize: 13, color: C.accent, fontWeight: '600' }}>Fale com a gente →</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
       </ScrollView>
     </LinearGradient>
   );
 }
 
-// ─── TELA 9: Fale Conosco ─────────────────────────────────────────────────────
-
-const SUBJECTS = ['Dúvida técnica', 'Problema no app', 'Sugestão de melhoria', 'Conteúdo incorreto', 'Outro'];
-
-export function TelaContato({ onNavigate }: { onNavigate: (screen: string) => void }) {
-  const [subject, setSubject] = useState(0);
-  const [message, setMessage] = useState('');
-  const [sent, setSent] = useState(false);
-
-  if (sent) {
-    return (
-      <LinearGradient colors={[C.bg, C.bg2, C.bg]} style={s.container}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, paddingHorizontal: 24 }}>
-          <Text style={{ fontSize: 64 }}>✅</Text>
-          <Text style={{ fontSize: 22, fontWeight: '800', color: C.text }}>Mensagem enviada!</Text>
-          <Text style={{ fontSize: 14, color: C.muted, textAlign: 'center', lineHeight: 22 }}>
-            Recebemos sua mensagem e retornaremos em até 48 horas no seu e-mail cadastrado.
-          </Text>
-          <TouchableOpacity activeOpacity={0.85} style={{ width: '100%' }} onPress={() => onNavigate('configuracoes')}>
-            <LinearGradient colors={['#43e97b', '#38f9d7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.primaryButton}>
-              <Text style={s.primaryButtonText}>VOLTAR</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      </LinearGradient>
-    );
-  }
-
-  return (
-    <LinearGradient colors={[C.bg, C.bg2, C.bg]} style={s.container}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
-      <Stack.Screen options={{ headerShown: false }} />
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
-        <View style={s.headerRow}>
-          <TouchableOpacity activeOpacity={0.7} onPress={() => onNavigate('configuracoes')}>
-            <Text style={s.backBtn}>‹ Voltar</Text>
-          </TouchableOpacity>
-          <Text style={s.headerTitle}>Fale Conosco</Text>
-          <View style={{ width: 60 }} />
-        </View>
-
-        <SectionCard>
-          <Text style={s.sectionLabel}>ASSUNTO</Text>
-          <View style={{ gap: 6 }}>
-            {SUBJECTS.map((sub, i) => (
-              <TouchableOpacity
-                key={sub}
-                activeOpacity={0.7}
-                onPress={() => setSubject(i)}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 }}
-              >
-                <View style={{ width: 18, height: 18, borderRadius: 999, borderWidth: 2, borderColor: subject === i ? C.accent : C.muted, backgroundColor: subject === i ? C.accentDim : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
-                  {subject === i && <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: C.accent }} />}
-                </View>
-                <Text style={{ fontSize: 13, color: subject === i ? C.text : C.muted, fontWeight: subject === i ? '600' : '400' }}>{sub}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </SectionCard>
-
-        <View style={[sh.card, { width: '100%' }]}>
-          <Text style={s.sectionLabel}>MENSAGEM</Text>
-          <TextInput
-            style={[s.input, s.inputMultiline, { minHeight: 120 }]}
-            value={message}
-            onChangeText={setMessage}
-            placeholder="Descreva seu problema ou sugestão..."
-            placeholderTextColor={C.muted}
-            multiline
-            textAlignVertical="top"
-            selectionColor={C.accent}
-          />
-          <Text style={{ fontSize: 11, color: C.muted, textAlign: 'right', marginTop: 6 }}>{message.length}/500</Text>
-        </View>
-
-        <View style={s.actions}>
-          <TouchableOpacity
-            activeOpacity={message.length > 10 ? 0.85 : 1}
-            style={{ width: '100%', opacity: message.length > 10 ? 1 : 0.4 }}
-            onPress={message.length > 10 ? () => setSent(true) : undefined}
-          >
-            <LinearGradient colors={['#43e97b', '#38f9d7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.primaryButton}>
-              <Text style={s.primaryButtonText}>📩 ENVIAR MENSAGEM</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </LinearGradient>
-  );
-}
-
-// ─── TELA 10: Avalie o App ────────────────────────────────────────────────────
-
-export function TelaAvaliar({ onNavigate }: { onNavigate: (screen: string) => void }) {
-  const [stars, setStars] = useState(0);
-  const [comment, setComment] = useState('');
-  const [submitted, setSubmitted] = useState(false);
-
-  if (submitted) {
-    return (
-      <LinearGradient colors={[C.bg, C.bg2, C.bg]} style={s.container}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, paddingHorizontal: 24 }}>
-          <Text style={{ fontSize: 64 }}>🎉</Text>
-          <Text style={{ fontSize: 22, fontWeight: '800', color: C.text }}>Obrigado!</Text>
-          <Text style={{ fontSize: 14, color: C.muted, textAlign: 'center', lineHeight: 22 }}>
-            Sua avaliação nos ajuda a melhorar a plataforma para todos os alunos.
-          </Text>
-          <TouchableOpacity activeOpacity={0.85} style={{ width: '100%' }} onPress={() => onNavigate('configuracoes')}>
-            <LinearGradient colors={['#43e97b', '#38f9d7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.primaryButton}>
-              <Text style={s.primaryButtonText}>VOLTAR</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      </LinearGradient>
-    );
-  }
-
-  return (
-    <LinearGradient colors={[C.bg, C.bg2, C.bg]} style={s.container}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
-      <Stack.Screen options={{ headerShown: false }} />
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
-        <View style={s.headerRow}>
-          <TouchableOpacity activeOpacity={0.7} onPress={() => onNavigate('configuracoes')}>
-            <Text style={s.backBtn}>‹ Voltar</Text>
-          </TouchableOpacity>
-          <Text style={s.headerTitle}>Avalie o App</Text>
-          <View style={{ width: 60 }} />
-        </View>
-
-        <View style={{ alignItems: 'center', gap: 10, paddingVertical: 8 }}>
-          <Text style={{ fontSize: 48 }}>⭐</Text>
-          <Text style={{ fontSize: 18, fontWeight: '800', color: C.text }}>O que você acha da plataforma?</Text>
-          <Text style={{ fontSize: 13, color: C.muted, textAlign: 'center' }}>Sua opinião nos ajuda a melhorar</Text>
-        </View>
-
-        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 12 }}>
-          {[1, 2, 3, 4, 5].map(n => (
-            <TouchableOpacity key={n} onPress={() => setStars(n)} activeOpacity={0.7}>
-              <Text style={{ fontSize: 40, opacity: n <= stars ? 1 : 0.25 }}>⭐</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {stars > 0 && (
-          <Text style={{ fontSize: 14, color: C.accent, fontWeight: '700', textAlign: 'center' }}>
-            {stars === 1 ? 'Muito ruim 😢' : stars === 2 ? 'Ruim 😕' : stars === 3 ? 'Regular 😐' : stars === 4 ? 'Bom! 😊' : 'Excelente! 🚀'}
-          </Text>
-        )}
-
-        <View style={[sh.card, { width: '100%' }]}>
-          <Text style={s.sectionLabel}>COMENTÁRIO (OPCIONAL)</Text>
-          <TextInput
-            style={[s.input, s.inputMultiline]}
-            value={comment}
-            onChangeText={setComment}
-            placeholder="Conte o que pode melhorar..."
-            placeholderTextColor={C.muted}
-            multiline
-            textAlignVertical="top"
-            selectionColor={C.accent}
-          />
-        </View>
-
-        <View style={s.actions}>
-          <TouchableOpacity
-            activeOpacity={stars > 0 ? 0.85 : 1}
-            style={{ width: '100%', opacity: stars > 0 ? 1 : 0.4 }}
-            onPress={stars > 0 ? () => setSubmitted(true) : undefined}
-          >
-            <LinearGradient colors={['#43e97b', '#38f9d7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.primaryButton}>
-              <Text style={s.primaryButtonText}>ENVIAR AVALIAÇÃO</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </LinearGradient>
-  );
-}
-
-// ─── TELA 11: Termos de Uso ───────────────────────────────────────────────────
+// ─── TELA 9: Termos de Uso ────────────────────────────────────────────────────
 
 export function TelaTermos({ onNavigate }: { onNavigate: (screen: string) => void }) {
   return (
@@ -1143,12 +1019,115 @@ export function TelaTermos({ onNavigate }: { onNavigate: (screen: string) => voi
   );
 }
 
+// ─── TELA 10: Estatísticas da Plataforma (RF28) ──────────────────────────────
+
+export function TelaEstatisticas({ onNavigate }: { onNavigate: (screen: string) => void }) {
+  const [stats, setStats] = useState<PlatformStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      setLoading(true);
+      getAdminStats()
+        .then((data) => { if (active) { setStats(data); setLoading(false); } })
+        .catch((err: any) => { if (active) { setError(err?.message ?? 'Erro ao carregar.'); setLoading(false); } });
+      return () => { active = false; };
+    }, [])
+  );
+
+  return (
+    <LinearGradient colors={[C.bg, C.bg2, C.bg]} style={s.container}>
+      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+        <View style={s.headerRow}>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => onNavigate('configuracoes')}>
+            <Text style={s.backBtn}>‹ Voltar</Text>
+          </TouchableOpacity>
+          <Text style={s.headerTitle}>Estatísticas</Text>
+          <View style={{ width: 60 }} />
+        </View>
+
+        {loading ? (
+          <ActivityIndicator color={C.accent} style={{ marginTop: 40 }} />
+        ) : error ? (
+          <View style={{ alignItems: 'center', paddingVertical: 32, gap: 8 }}>
+            <Text style={{ fontSize: 28 }}>😕</Text>
+            <Text style={{ fontSize: 13, color: C.muted, textAlign: 'center' }}>{error}</Text>
+          </View>
+        ) : stats ? (
+          <>
+            <View style={{ alignItems: 'center', gap: 6 }}>
+              <Text style={{ fontSize: 32 }}>📊</Text>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: C.text }}>Visão Geral da Plataforma</Text>
+            </View>
+
+            {/* Main numbers */}
+            <View style={s.statsRow}>
+              <StatItem value={String(stats.totalUsers)} label="Usuários" />
+              <View style={sh.divider} />
+              <StatItem value={String(stats.totalCompletions)} label="Conclusões" />
+              <View style={sh.divider} />
+              <StatItem value={String(stats.activeToday)} label="Ativos Hoje" />
+            </View>
+
+            {/* Content counts */}
+            <View style={s.statsRow}>
+              <StatItem value={String(stats.totalCourses)} label="Cursos" />
+              <View style={sh.divider} />
+              <StatItem value={String(stats.totalLessons)} label="Lições" />
+              <View style={sh.divider} />
+              <StatItem value={String(stats.totalExercises)} label="Exercícios" />
+            </View>
+
+            {/* Detail cards */}
+            <SectionCard>
+              <Text style={s.sectionLabel}>ENGAJAMENTO</Text>
+              <View style={{ gap: 14 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 13, color: C.muted, fontWeight: '500' }}>XP Médio por Usuário</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: C.accent }}>{stats.averageXp} XP</Text>
+                </View>
+                <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.06)' }} />
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 13, color: C.muted, fontWeight: '500' }}>Curso Mais Concluído</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: C.text, flex: 1, textAlign: 'right', marginLeft: 12 }} numberOfLines={2}>{stats.mostCompletedCourse || '—'}</Text>
+                </View>
+              </View>
+            </SectionCard>
+
+            {stats.topUser && (
+              <SectionCard>
+                <Text style={s.sectionLabel}>TOP USUÁRIO</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                  <View style={{ width: 50, height: 50, borderRadius: 999, backgroundColor: 'rgba(249,199,79,0.12)', borderWidth: 1, borderColor: 'rgba(249,199,79,0.3)', alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: 22 }}>🏆</Text>
+                  </View>
+                  <View style={{ gap: 3, flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontWeight: '800', color: C.text }}>{stats.topUser.name}</Text>
+                    <Text style={{ fontSize: 12, color: C.muted }}>Nível {stats.topUser.level} · {stats.topUser.xp} XP</Text>
+                  </View>
+                  <View style={{ backgroundColor: 'rgba(249,199,79,0.12)', borderWidth: 1, borderColor: 'rgba(249,199,79,0.3)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: C.warn }}>#{1}</Text>
+                  </View>
+                </View>
+              </SectionCard>
+            )}
+          </>
+        ) : null}
+      </ScrollView>
+    </LinearGradient>
+  );
+}
+
 // ─── Root Navigator ───────────────────────────────────────────────────────────
 
 type Screen =
   | 'perfil' | 'editar' | 'historico' | 'configuracoes'
   | 'alterar-senha' | 'deletar-conta'
-  | 'central-ajuda' | 'contato' | 'avaliar' | 'termos';
+  | 'central-ajuda' | 'termos' | 'estatisticas';
 
 export default function ProfileNavigator() {
   const router = useRouter();
@@ -1171,9 +1150,8 @@ export default function ProfileNavigator() {
       {screen === 'alterar-senha'  && <TelaAlterarSenha onNavigate={navigate} />}
       {screen === 'deletar-conta'  && <TelaDeletarConta onNavigate={navigate} />}
       {screen === 'central-ajuda'  && <TelaCentralAjuda onNavigate={navigate} />}
-      {screen === 'contato'        && <TelaContato onNavigate={navigate} />}
-      {screen === 'avaliar'        && <TelaAvaliar onNavigate={navigate} />}
       {screen === 'termos'         && <TelaTermos onNavigate={navigate} />}
+      {screen === 'estatisticas'   && <TelaEstatisticas onNavigate={navigate} />}
 
       <View style={navStyles.bottomNav}>
         <TouchableOpacity style={navStyles.navItem} activeOpacity={0.7} onPress={() => router.push('/home')}>
@@ -1678,6 +1656,31 @@ const s = StyleSheet.create({
     fontSize: 11,
     color: C.muted,
     marginTop: 1,
+  },
+  toggleTrack: {
+    width: 44,
+    height: 24,
+    borderRadius: 999,
+    padding: 2,
+    justifyContent: 'center',
+  },
+  toggleTrackOn: {
+    backgroundColor: C.accent,
+  },
+  toggleTrackOff: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  toggleThumb: {
+    width: 20,
+    height: 20,
+    borderRadius: 999,
+    backgroundColor: '#fff',
+  },
+  toggleThumbOn: {
+    alignSelf: 'flex-end',
+  },
+  toggleThumbOff: {
+    alignSelf: 'flex-start',
   },
 
   // Version
