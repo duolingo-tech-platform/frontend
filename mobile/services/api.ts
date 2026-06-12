@@ -1,12 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { Platform } from 'react-native';
 
-// Web e iOS simulator usam localhost; Android emulator usa 10.0.2.2
-export const API_URL =
-  Platform.OS === 'android'
-    ? 'http://10.0.2.2:5214/api'
-    : 'http://localhost:5214/api';
+export const API_URL = 'http://50.16.102.36/api';
 
 async function getHeaders(auth = false): Promise<HeadersInit> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
